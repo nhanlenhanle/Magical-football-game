@@ -28,9 +28,9 @@ def update_game(ball, player1, player2, dt, score_red, score_blue):
     player2.handle_input(keys, dt)
     player1.update(dt)
     player2.update(dt)
+    player1.handle_player_collision(player2)
     player1.handle_wall_collision()
     player2.handle_wall_collision()
-    player1.handle_player_collision(player2)
    # ball.apply_input(keys, dt)
     ball.update(dt)
     ball.handle_post_collision()
@@ -119,35 +119,35 @@ def main():
                     continue
                 elif game_state == "PLAY_PVP":
                     if event.key == pygame.K_1 and player_number == 1:
-                        player1.color = (200, 40, 40)  # Đỏ
+                        player1.information("Isagi", color=(200, 40, 40))  # Đỏ
                         # player1.character = "Isagi"
                         player_number += 1
                     elif event.key == pygame.K_2 and player_number == 1:
-                        player1.color = (40, 40, 200)  # Xanh
+                        player1.information("Nagi", color=(40, 40, 200))  # Xanh
                         # player1.character = "Nagi"
                         player_number += 1
                     elif event.key == pygame.K_3 and player_number == 1:
-                        player1.color = (255, 215, 0)  # Vàng
+                        player1.information("Bachira", color=(255, 215, 0))  # Vàng
                         # player1.character = "Bachira"
                         player_number += 1
                     elif event.key == pygame.K_4 and player_number == 1:
-                        player1.color = (128, 0, 128)  # Tím
+                        player1.information("Kunigami", color=(128, 0, 128))  # Tím
                         # player1.character = "Kunigami"
                         player_number += 1
                     elif event.key == pygame.K_1 and player_number == 2:
-                        player2.color = (200, 40, 40)  # Đỏ
+                        player2.information("Isagi", color=(200, 40, 40))  # Đỏ
                         # player2.character = "Isagi"
                         game_state = "PLAYING"
                     elif event.key == pygame.K_2 and player_number == 2:
-                        player2.color = (40, 40, 200)  # Xanh
+                        player2.information("Nagi", color=(40, 40, 200))  # Xanh
                         # player2.character = "Nagi"
                         game_state = "PLAYING"
                     elif event.key == pygame.K_3 and player_number == 2:
-                        player2.color = (255, 215, 0)  # Vàng
+                        player2.information("Bachira", color=(255, 215, 0))  # Vàng
                         # player2.character = "Bachira"
                         game_state = "PLAYING"
                     elif event.key == pygame.K_4 and player_number == 2:
-                        player2.color = (128, 0, 128)  # Tím
+                        player2.information("Kunigami", color=(128, 0, 128))  # Tím
                         # player2.character = "Kunigami"
                         game_state = "PLAYING"
                     continue
