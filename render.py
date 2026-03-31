@@ -43,7 +43,7 @@ def draw_scene(screen, ball, player1, player2, score_red, score_blue, font):
     # Goal lines (front)
     pygame.draw.line(
         screen,
-        COLOR_TEAM_RED,
+        player1.color,
         (OFFSET_X, OFFSET_Y + GOAL_TOP),
         (OFFSET_X, OFFSET_Y + GOAL_BOTTOM),
         2
@@ -51,7 +51,7 @@ def draw_scene(screen, ball, player1, player2, score_red, score_blue, font):
 
     pygame.draw.line(
         screen,
-        COLOR_TEAM_BLUE,
+        player2.color,
         (OFFSET_X + FIELD_WIDTH, OFFSET_Y + GOAL_TOP),
         (OFFSET_X + FIELD_WIDTH, OFFSET_Y + GOAL_BOTTOM),
         2
@@ -141,5 +141,6 @@ def draw_scene(screen, ball, player1, player2, score_red, score_blue, font):
         score_text,
         (WINDOW_WIDTH // 2 - score_text.get_width() // 2, 20)
     )
-    player.draw(screen)
+    player1.draw(screen)
+    player2.draw(screen)
     pygame.display.flip()

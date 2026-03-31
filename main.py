@@ -1,46 +1,57 @@
 import pygame
 import sys
-
 from config import *
 from ball import Ball
 from render import draw_scene
 from player import Player
-def handle_events():
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            return False
-    return True
+
+#------------------------ CONTROLS------------------------
+controls1 = {
+    "up": pygame.K_w,
+    "down": pygame.K_s,
+    "left": pygame.K_a,
+    "right": pygame.K_d
+}
+
+controls2 = {
+    "up": pygame.K_UP,
+    "down": pygame.K_DOWN,
+    "left": pygame.K_LEFT,
+    "right": pygame.K_RIGHT
+}
+#---------------------------------------------------------
 
 
-def update_game(ball, player, dt, score_red, score_blue):
+def update_game(ball, player1, player2, dt, score_red, score_blue):
     keys = pygame.key.get_pressed()
-    player.handle_input(keys, dt)
-    player.update(dt)
-    player.handle_wall_collision()
+    player1.handle_input(keys, dt)
+    player2.handle_input(keys, dt)
+    player1.update(dt)
+    player2.update(dt)
+    player1.handle_wall_collision()
+    player2.handle_wall_collision()
+    player1.handle_player_collision(player2)
    # ball.apply_input(keys, dt)
     ball.update(dt)
     ball.handle_post_collision()
-
-    player.handle_ball_collision(ball)
-
-    if keys[pygame.K_SPACE]:
-        player.kick(ball)
+    player1.handle_ball_collision(ball)
+    player2.handle_ball_collision(ball)
 
     goal = ball.handle_wall_collision()
 
     if goal == "RED_GOAL":
         score_red += 1
         ball.reset()
-        # player1.reset()
-        # player2.reset()
+        player1.reset(FIELD_WIDTH // 4, FIELD_HEIGHT // 2, player1.color, controls1)
+        player2.reset(FIELD_WIDTH * 3 // 4, FIELD_HEIGHT // 2, player2.color, controls2)
 
     elif goal == "BLUE_GOAL":
         score_blue += 1
         ball.reset()
-        # player1.reset()
-        # player2.reset()
+        player1.reset(FIELD_WIDTH // 4, FIELD_HEIGHT // 2, player1.color, controls1)
+        player2.reset(FIELD_WIDTH * 3 // 4, FIELD_HEIGHT // 2, player2.color, controls2)
     return score_red, score_blue
-
+#------------------------ Vẽ giao diện mở đầu------------------------
 def draw_menu(screen, font):
     screen.fill((30, 30, 30))
 
@@ -51,6 +62,25 @@ def draw_menu(screen, font):
     screen.blit(title, (250, 100))
     screen.blit(bot, (250, 200))
     screen.blit(pvp, (250, 260))
+
+    pygame.display.flip()
+def draw_character_select(screen, font, player_number):
+    if player_number == 1:
+        screen.fill((20, 20, 20))
+    else :
+        screen.fill((50, 50, 50))
+    text = font.render(f"Player {player_number} Choose Character", True, (255,255,255))
+
+    isagi = font.render("1 - Isagi", True, (200,200,200))
+    nagi = font.render("2 - Nagi", True, (200,200,200))
+    bachira = font.render("3 - Bachira", True, (200,200,200))
+    kunigami = font.render("4 - Kunigami", True, (200,200,200))
+    
+    screen.blit(text, (250, 100))
+    screen.blit(isagi, (250, 200))
+    screen.blit(nagi, (250, 250))
+    screen.blit(bachira, (250, 300))
+    screen.blit(kunigami, (250, 350))
 
     pygame.display.flip()
 def main():
@@ -65,28 +95,73 @@ def main():
 
     # Game state
     ball = Ball()
-    player1 = Player(FIELD_WIDTH // 4, FIELD_HEIGHT // 2, COLOR_TEAM_BLUE)
-    player2 = Player(FIELD_WIDTH * 3 // 4, FIELD_HEIGHT // 2, COLOR_TEAM_RED)
+    player1 = Player(FIELD_WIDTH // 4, FIELD_HEIGHT // 2, COLOR_TEAM_RED, controls1)
+    player2 = Player(FIELD_WIDTH * 3 // 4, FIELD_HEIGHT // 2, COLOR_TEAM_BLUE, controls2)
     score_red = 0
     score_blue = 0
-
+    player_number = 1
     running = True
-    while running:
+    while running:            
         dt = clock.tick(60) / 1000.0
-
-        running = handle_events()
-        keys = pygame.key.get_pressed()
-        if game_state == "MENU":
-            if keys[pygame.K_1]:
-                game_state = "PLAY_BOT"
-            if keys[pygame.K_2]:
-                game_state = "PLAY_PVP"
         if game_state == "MENU":
             draw_menu(screen, font)
+        elif game_state == "PLAY_PVP":
+            draw_character_select(screen, font, player_number)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            if event.type == pygame.KEYDOWN:
+                if game_state == "MENU":
+                    if event.key == pygame.K_1:
+                        game_state = "PLAY_BOT"
+                    elif event.key == pygame.K_2:
+                        game_state = "PLAY_PVP"
+                    continue
+                elif game_state == "PLAY_PVP":
+                    if event.key == pygame.K_1 and player_number == 1:
+                        player1.color = (200, 40, 40)  # Đỏ
+                        # player1.character = "Isagi"
+                        player_number += 1
+                    elif event.key == pygame.K_2 and player_number == 1:
+                        player1.color = (40, 40, 200)  # Xanh
+                        # player1.character = "Nagi"
+                        player_number += 1
+                    elif event.key == pygame.K_3 and player_number == 1:
+                        player1.color = (255, 215, 0)  # Vàng
+                        # player1.character = "Bachira"
+                        player_number += 1
+                    elif event.key == pygame.K_4 and player_number == 1:
+                        player1.color = (128, 0, 128)  # Tím
+                        # player1.character = "Kunigami"
+                        player_number += 1
+                    elif event.key == pygame.K_1 and player_number == 2:
+                        player2.color = (200, 40, 40)  # Đỏ
+                        # player2.character = "Isagi"
+                        game_state = "PLAYING"
+                    elif event.key == pygame.K_2 and player_number == 2:
+                        player2.color = (40, 40, 200)  # Xanh
+                        # player2.character = "Nagi"
+                        game_state = "PLAYING"
+                    elif event.key == pygame.K_3 and player_number == 2:
+                        player2.color = (255, 215, 0)  # Vàng
+                        # player2.character = "Bachira"
+                        game_state = "PLAYING"
+                    elif event.key == pygame.K_4 and player_number == 2:
+                        player2.color = (128, 0, 128)  # Tím
+                        # player2.character = "Kunigami"
+                        game_state = "PLAYING"
+                    continue
+                elif game_state == "PLAYING":
+                    if event.key == pygame.K_SPACE:
+                        player1.kick(ball)
+                    if event.key == pygame.K_RCTRL:
+                        player2.kick(ball)
+                    continue
+        if game_state != "PLAYING":
             continue
         # UPDATE
         score_red, score_blue = update_game(
-            ball, player, dt, score_red, score_blue
+            ball, player1,player2, dt, score_red, score_blue
         )
 
         # RENDER

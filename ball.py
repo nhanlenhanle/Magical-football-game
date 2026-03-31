@@ -7,15 +7,15 @@ class Ball:
         self.pos = pygame.Vector2(FIELD_WIDTH // 2, FIELD_HEIGHT // 2)
         self.vel = pygame.Vector2(0, 0)
 
-    def apply_input(self, keys, dt):
-        if keys[pygame.K_UP]:
-            self.vel.y -= FORCE * dt
-        if keys[pygame.K_DOWN]:
-            self.vel.y += FORCE * dt
-        if keys[pygame.K_LEFT]:
-            self.vel.x -= FORCE * dt
-        if keys[pygame.K_RIGHT]:
-            self.vel.x += FORCE * dt
+    # def apply_input(self, keys, dt):
+    #     if keys[pygame.K_UP]:
+    #         self.vel.y -= FORCE * dt
+    #     if keys[pygame.K_DOWN]:
+    #         self.vel.y += FORCE * dt
+    #     if keys[pygame.K_LEFT]:
+    #         self.vel.x -= FORCE * dt
+    #     if keys[pygame.K_RIGHT]:
+    #         self.vel.x += FORCE * dt
 
     def update(self, dt):
         # Damping kiểu Haxball
