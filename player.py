@@ -9,7 +9,12 @@ class Player:
         self.vel = pygame.Vector2(0, 0)
         self.color = color
         self.controls = control
+        #------------------------- CHARACTER SELECTION ------------------------
         self.mass = PLAYER_MASS
+        self.character = None
+        self.skill_active = False
+        self.skill_timer = 0
+        self.skill_cooldown = 0
 
     def handle_input(self, keys, dt):
         direction = pygame.Vector2(0, 0)
@@ -38,6 +43,16 @@ class Player:
 
         if self.kick_timer > 0:
             self.kick_timer -= dt
+
+        #------------------------ SKILL UPDATE ------------------------
+        if self.skill_active:
+            self.skill_timer -= dt
+            if self.skill_timer <= 0:
+                self.skill_active = False
+                if self.character == "Kunigami":
+                    self.mass = PLAYER_MASS
+        if self.skill_cooldown > 0:
+            self.skill_cooldown -= dt
     #------------------------ COLLISIONS ------------------------
     # Xử lý va chạm giữa hai player
     def handle_player_collision(self, other):
@@ -163,17 +178,17 @@ class Player:
             direction = diff.normalize()
             ball.vel += direction * KICK_FORCE
             self.kick_timer = KICK_COOLDOWN
-    def information(self,character,color):
-        if character == "Isagi":
-            # self.skill
-            color = (200, 40, 40)  # Đỏ
-        elif character == "Nagi":
-            color = (40, 40, 200)  # Xanh
-        elif character == "Bachira":
-            color = (255, 215, 0)  # Vàng
-        elif character == "Kunigami":
-            self.mass= 100  # Kunigami đô hơn, khó bị đẩy lùi
-            color = (128, 0, 128)  # Tím
+    #------------------------ SKILL ------------------------
+    def activate_skill(self):
+        if self.skill_cooldown > 0:
+            return
+        if self.character == "Kunigami":
+            self.skill_active = True
+            self.skill_timer = 5.0
+            self.skill_cooldown = 10.0
+            self.mass = 1000  # cực nặng, khó bị đẩy văng ra khỏi sân
+    def information(self, character,color):
+        self.character = character
         self.color = color
     def draw(self, screen):
         pygame.draw.circle(

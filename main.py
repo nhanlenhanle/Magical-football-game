@@ -156,6 +156,10 @@ def main():
                         player1.kick(ball)
                     if event.key == pygame.K_RCTRL:
                         player2.kick(ball)
+                    if event.key == pygame.K_q:
+                        player1.activate_skill()
+                    if event.key == pygame.K_RSHIFT:
+                        player2.activate_skill()
                     continue
         if game_state != "PLAYING":
             continue
