@@ -2,7 +2,7 @@ import pygame
 from config import *
 
 
-def draw_scene(screen, ball, player1, player2, score_red, score_blue, font):
+def draw_scene(screen, ball, ball_ok, player1, player2, score_red, score_blue, font):
 
     # =========================
     # BACKGROUND
@@ -111,22 +111,23 @@ def draw_scene(screen, ball, player1, player2, score_red, score_blue, font):
     # =========================
     # BALL
     # =========================
-    pygame.draw.circle(
-        screen,
-        COLOR_BALL,
-        (int(ball.pos.x + OFFSET_X),
-         int(ball.pos.y + OFFSET_Y)),
-        BALL_RADIUS
-    )
+    if ball_ok:
+        pygame.draw.circle(
+            screen,
+            COLOR_BALL,
+            (int(ball.pos.x + OFFSET_X),
+            int(ball.pos.y + OFFSET_Y)),
+            BALL_RADIUS
+        )
 
-    pygame.draw.circle(
-        screen,
-        COLOR_BALL_OUTLINE,
-        (int(ball.pos.x + OFFSET_X),
-         int(ball.pos.y + OFFSET_Y)),
-        BALL_RADIUS,
-        2
-    )
+        pygame.draw.circle(
+            screen,
+            COLOR_BALL_OUTLINE,
+            (int(ball.pos.x + OFFSET_X),
+            int(ball.pos.y + OFFSET_Y)),
+            BALL_RADIUS,
+            2
+        )
 
     # =========================
     # SCORE (simple)

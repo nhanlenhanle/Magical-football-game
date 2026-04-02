@@ -9,6 +9,12 @@ class Player:
         self.vel = pygame.Vector2(0, 0)
         self.color = color
         self.controls = control
+
+        self.ball_ok=True
+        self.acceleration = PLAYER_ACCELERATION
+        self.damping = PLAYER_DAMPING
+        self.max_speed = PLAYER_MAX_SPEED
+        self.can_kick = True
         #------------------------- CHARACTER SELECTION ------------------------
         self.mass = PLAYER_MASS
         self.character = None
@@ -30,14 +36,14 @@ class Player:
 
         if direction.length() > 0:
             direction = direction.normalize()
-            self.vel += direction * PLAYER_ACCELERATION * dt
+            self.vel += direction * self.acceleration * dt
 
-    def update(self, dt):
-        self.vel *= PLAYER_DAMPING
+    def update(self, other, dt, ball):
+        self.vel *= self.damping
 
         # Giới hạn tốc độ tối đa
-        if self.vel.length() > PLAYER_MAX_SPEED:
-            self.vel.scale_to_length(PLAYER_MAX_SPEED)
+        if self.vel.length() > self.max_speed:
+            self.vel.scale_to_length(self.max_speed)
 
         self.pos += self.vel * dt
 
@@ -51,6 +57,26 @@ class Player:
                 self.skill_active = False
                 if self.character == "Kunigami":
                     self.mass = PLAYER_MASS
+                if self.character == "Isagi":
+                    other.can_kick = True
+                    other.vel = pygame.Vector2(0, 0)  # trả lại tốc độ cho đối thủ sau khi skill kết thúc
+                if self.character == "Chigiri":
+                    self.max_speed = PLAYER_MAX_SPEED
+                    self.damping = PLAYER_DAMPING
+                    self.acceleration = PLAYER_ACCELERATION
+                if self.character == "Bachira":
+                    self.ball_ok=True
+
+            else:
+                if self.character == "Isagi":
+                    other.vel *= 0.005  # tiếp tục duy trì hiệu ứng giảm tốc độ đối thủ trong thời gian skill còn hoạt động
+                if self.character == "Chigiri":
+                    self.vel *= 1.1 # tiếp tục duy trì hiệu ứng tăng tốc độ của bản thân trong thời gian skill còn hoạt động
+                if self.character == "Nagi":
+                    diff = ball.pos - self.pos
+                    if diff.length() < 200:
+                        direction = diff.normalize()
+                        ball.vel -= direction * 200 * dt
         if self.skill_cooldown > 0:
             self.skill_cooldown -= dt
     #------------------------ COLLISIONS ------------------------
@@ -64,12 +90,11 @@ class Player:
             normal = diff.normalize()
             overlap = min_dist - distance
 
-            # Bước 1: Tách 2 player ra theo khối lượng
+            # Tách 2 player ra theo khối lượng
             total_mass = self.mass + other.mass
             self.pos -= normal * (overlap * (other.mass / total_mass))
             other.pos += normal * (overlap * (self.mass / total_mass))
 
-            # --- DỒN PHẦN DƯ ---
             # Kéo 2 đứa về lại sân (nếu bị đẩy văng ra), lấy phần văng ra đó lưu lại
             corr_self = self.handle_wall_collision()
             corr_other = other.handle_wall_collision()
@@ -83,7 +108,7 @@ class Player:
             other.handle_wall_collision()
             # -------------------------
 
-            # Bước 2: Xử lý vận tốc (giữ nguyên như cũ)
+            # Xử lý vận tốc 
             relative_velocity = self.vel - other.vel
             vel_along_normal = relative_velocity.dot(normal)
 
@@ -165,7 +190,8 @@ class Player:
         return False
 
     def kick(self, ball):
-
+        if self.can_kick == False:
+            return
         if self.kick_timer > 0:
             return
 
@@ -179,7 +205,7 @@ class Player:
             ball.vel += direction * KICK_FORCE
             self.kick_timer = KICK_COOLDOWN
     #------------------------ SKILL ------------------------
-    def activate_skill(self):
+    def activate_skill(self,other):
         if self.skill_cooldown > 0:
             return
         if self.character == "Kunigami":
@@ -187,6 +213,29 @@ class Player:
             self.skill_timer = 5.0
             self.skill_cooldown = 10.0
             self.mass = 1000  # cực nặng, khó bị đẩy văng ra khỏi sân
+        if self.character == "Isagi":
+            self.skill_active = True
+            self.skill_timer = 2.0
+            self.skill_cooldown = 15.0
+            other.vel *= 0.005  # giảm tốc độ đối thủ xuống cực thấp
+            other.can_kick = False  # đối thủ không thể đá bóng trong thời gian này
+        if self.character == "Chigiri":
+            self.skill_active = True
+            self.skill_timer = 5.0
+            self.skill_cooldown = 10.0
+            self.max_speed += 50 
+            self.vel *= 1.5
+            self.damping = 0.9
+            self.acceleration += 200
+        if self.character == "Bachira":
+            self.skill_active = True
+            self.skill_timer = 5.0
+            self.skill_cooldown = 10.0
+            self.ball_ok=False
+        if self.character == "Nagi":
+            self.skill_active = True
+            self.skill_timer = 5.0
+            self.skill_cooldown = 10.0
     def information(self, character,color):
         self.character = character
         self.color = color

@@ -21,13 +21,13 @@ controls2 = {
 }
 #---------------------------------------------------------
 
-
 def update_game(ball, player1, player2, dt, score_red, score_blue):
     keys = pygame.key.get_pressed()
     player1.handle_input(keys, dt)
     player2.handle_input(keys, dt)
-    player1.update(dt)
-    player2.update(dt)
+    player1.update(player2, dt, ball)
+    player2.update(player1, dt, ball)
+    ball_ok = player1.ball_ok and player2.ball_ok
     player1.handle_player_collision(player2)
     player1.handle_wall_collision()
     player2.handle_wall_collision()
@@ -50,7 +50,7 @@ def update_game(ball, player1, player2, dt, score_red, score_blue):
         ball.reset()
         player1.reset(FIELD_WIDTH // 4, FIELD_HEIGHT // 2, player1.color, controls1)
         player2.reset(FIELD_WIDTH * 3 // 4, FIELD_HEIGHT // 2, player2.color, controls2)
-    return score_red, score_blue
+    return score_red, score_blue, ball_ok
 #------------------------ Vẽ giao diện mở đầu------------------------
 def draw_menu(screen, font):
     screen.fill((30, 30, 30))
@@ -75,12 +75,14 @@ def draw_character_select(screen, font, player_number):
     nagi = font.render("2 - Nagi", True, (200,200,200))
     bachira = font.render("3 - Bachira", True, (200,200,200))
     kunigami = font.render("4 - Kunigami", True, (200,200,200))
+    chigiri = font.render("5 - Chigiri", True, (200,200,200))
     
     screen.blit(text, (250, 100))
     screen.blit(isagi, (250, 200))
     screen.blit(nagi, (250, 250))
     screen.blit(bachira, (250, 300))
     screen.blit(kunigami, (250, 350))
+    screen.blit(chigiri, (250, 400))
 
     pygame.display.flip()
 def main():
@@ -134,6 +136,10 @@ def main():
                         player1.information("Kunigami", color=(128, 0, 128))  # Tím
                         # player1.character = "Kunigami"
                         player_number += 1
+                    elif event.key == pygame.K_5 and player_number == 1:
+                        player1.information("Chigiri", color=(0, 255, 255))  # Cyan
+                        # player1.character = "Chigiri"
+                        player_number += 1
                     elif event.key == pygame.K_1 and player_number == 2:
                         player2.information("Isagi", color=(200, 40, 40))  # Đỏ
                         # player2.character = "Isagi"
@@ -150,26 +156,30 @@ def main():
                         player2.information("Kunigami", color=(128, 0, 128))  # Tím
                         # player2.character = "Kunigami"
                         game_state = "PLAYING"
+                    elif event.key == pygame.K_5 and player_number == 2:
+                        player2.information("Chigiri", color=(0, 255, 255))  # Cyan
+                        # player2.character = "Chigiri"
+                        game_state = "PLAYING"
                     continue
                 elif game_state == "PLAYING":
                     if event.key == pygame.K_SPACE:
                         player1.kick(ball)
-                    if event.key == pygame.K_RCTRL:
+                    if event.key == pygame.K_RETURN:
                         player2.kick(ball)
                     if event.key == pygame.K_q:
-                        player1.activate_skill()
+                        player1.activate_skill(player2)
                     if event.key == pygame.K_RSHIFT:
-                        player2.activate_skill()
+                        player2.activate_skill(player1)
                     continue
         if game_state != "PLAYING":
             continue
         # UPDATE
-        score_red, score_blue = update_game(
+        score_red, score_blue, ball_ok = update_game(
             ball, player1,player2, dt, score_red, score_blue
         )
 
         # RENDER
-        draw_scene(screen, ball, player1, player2, score_red, score_blue, font)
+        draw_scene(screen, ball, ball_ok, player1, player2, score_red, score_blue, font)
 
     pygame.quit()
     sys.exit()
