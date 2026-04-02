@@ -24,7 +24,10 @@ controls2 = {
 def update_game(ball, player1, player2, dt, score_red, score_blue):
     keys = pygame.key.get_pressed()
     player1.handle_input(keys, dt)
-    player2.handle_input(keys, dt)
+    if player2.is_bot:
+        player2.bot_update(player1, ball, dt)
+    else:
+        player2.handle_input(keys, dt)
     player1.update(player2, dt, ball)
     player2.update(player1, dt, ball)
     ball_ok = player1.ball_ok and player2.ball_ok
@@ -109,6 +112,9 @@ def main():
             draw_menu(screen, font)
         elif game_state == "PLAY_PVP":
             draw_character_select(screen, font, player_number)
+        elif game_state == "PLAY_BOT":
+            player2.is_bot = True
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -153,7 +159,7 @@ def main():
                         # player2.character = "Bachira"
                         game_state = "PLAYING"
                     elif event.key == pygame.K_4 and player_number == 2:
-                        player2.information("Kunigami", color=(128, 0, 128))  # Tím
+                        player2.infordmation("Kunigami", color=(128, 0, 128))  # Tím
                         # player2.character = "Kunigami"
                         game_state = "PLAYING"
                     elif event.key == pygame.K_5 and player_number == 2:
@@ -161,7 +167,7 @@ def main():
                         # player2.character = "Chigiri"
                         game_state = "PLAYING"
                     continue
-                elif game_state == "PLAYING":
+                elif game_state == "PLAYING" or game_state == "PLAY_BOT":
                     if event.key == pygame.K_SPACE:
                         player1.kick(ball)
                     if event.key == pygame.K_RETURN:
@@ -171,7 +177,7 @@ def main():
                     if event.key == pygame.K_RSHIFT:
                         player2.activate_skill(player1)
                     continue
-        if game_state != "PLAYING":
+        if game_state != "PLAYING" and game_state != "PLAY_BOT":
             continue
         # UPDATE
         score_red, score_blue, ball_ok = update_game(

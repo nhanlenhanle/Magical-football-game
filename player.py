@@ -21,6 +21,151 @@ class Player:
         self.skill_active = False
         self.skill_timer = 0
         self.skill_cooldown = 0
+        #------------------------- BOT ------------------------
+        self.is_bot = False
+    def bot_update(self, opponent, ball, dt):
+        # =========================
+        # 0. PREDICTION (Tính đường cắt bóng)
+        # =========================
+        my_goal = pygame.Vector2(FIELD_WIDTH, FIELD_HEIGHT / 2)
+        enemy_goal = pygame.Vector2(0, FIELD_HEIGHT / 2)
+
+        # Tính thời gian dự kiến để Bot chạy tới bóng
+        # Dùng vận tốc bóng (ball.vel) để tính xem 0.3s -> 0.4s nữa bóng sẽ lăn tới đâu
+        time_to_reach = min(0.4, (ball.pos - self.pos).length() / (self.max_speed + 1))
+        pred_ball_pos = ball.pos + ball.vel * time_to_reach
+        
+        # Đảm bảo điểm dự đoán không bị lọt ra ngoài sân
+        pred_ball_pos.x = max(20, min(FIELD_WIDTH - 20, pred_ball_pos.x))
+        pred_ball_pos.y = max(20, min(FIELD_HEIGHT - 20, pred_ball_pos.y))
+
+        # Dùng vị trí DỰ ĐOÁN để đánh giá khoảng cách thay vì vị trí bóng hiện tại
+        dist_to_ball = (pred_ball_pos - self.pos).length()
+        opp_dist_to_ball = (pred_ball_pos - opponent.pos).length()
+        
+        # Các cờ trạng thái vật lý vẫn dùng vị trí gốc
+        dist_actual = (ball.pos - self.pos).length()
+        is_possessing = dist_actual < PLAYER_RADIUS + BALL_RADIUS + 8
+        can_kick = dist_actual < PLAYER_RADIUS + BALL_RADIUS + KICK_RANGE
+        safe_margin = PLAYER_RADIUS + BALL_RADIUS + 15
+
+        # =========================
+        # 1. SHOT OPTIONS (Tối ưu tìm góc sút hiểm nhất)
+        # =========================
+        opp_goal_top = pygame.Vector2(0, GOAL_TOP + BALL_RADIUS + 5)
+        opp_goal_bottom = pygame.Vector2(0, GOAL_BOTTOM - BALL_RADIUS - 5)
+        virtual_top = pygame.Vector2(0, -FIELD_HEIGHT / 2)
+        virtual_bottom = pygame.Vector2(0, FIELD_HEIGHT + FIELD_HEIGHT / 2)
+
+        shot_options = [opp_goal_top, opp_goal_bottom, virtual_top, virtual_bottom]
+        
+        best_shot = enemy_goal
+        max_clearance = -1 # Tìm góc thoáng nhất
+        
+        for shot in shot_options:
+            A = ball.pos
+            B = shot
+            P = opponent.pos
+            AB = B - A
+            AP = P - A
+
+            if AB.length_squared() > 0:
+                t = AP.dot(AB) / AB.length_squared()
+                t = max(0.0, min(1.0, t))
+                closest = A + AB * t
+                dist_to_line = (P - closest).length()
+
+                # So sánh: Thay vì lấy góc đầu tiên, Bot sẽ duyệt hết và chọn quỹ đạo SÚT XA ĐỊCH NHẤT
+                if dist_to_line > max_clearance:
+                    max_clearance = dist_to_line
+                    best_shot = shot
+
+        # =========================
+        # 2. STATE
+        # =========================
+        if dist_to_ball < opp_dist_to_ball:
+            state = "ATTACK"
+        else:
+            state = "DEFEND"
+
+        current_accel = self.acceleration
+
+        # =========================
+        # 3. DEFENSE (Cắt bóng + Phá ra biên)
+        # =========================
+        if state == "DEFEND":
+            if opp_dist_to_ball > 150:
+                # Địch ở xa: Đón lõng đường chuyền/đường lăn của bóng
+                target = my_goal + (pred_ball_pos - my_goal) * 0.4
+            else:
+                # ÁP SÁT CẮT BÓNG VÀ PHÁ RA BIÊN
+                # Mục tiêu: Đẩy bóng về 2 góc sân của địch (Tránh xa gôn nhà)
+                if ball.pos.y > FIELD_HEIGHT / 2:
+                    clearance_target = pygame.Vector2(0, 0) # Góc trên
+                else:
+                    clearance_target = pygame.Vector2(0, FIELD_HEIGHT) # Góc dưới
+                    
+                # Tính hướng để Bot đứng sao cho khi húc/sút, bóng bay về clearance_target
+                clear_dir = (pred_ball_pos - clearance_target).normalize()
+                
+                # Chạy thẳng tới ĐIỂM CẮT BÓNG (future_pos) thay vì đuổi theo bóng
+                target = pred_ball_pos + clear_dir * 18
+                current_accel = self.acceleration * 1.3 # Buff 30% tốc độ để nhoài người cắt bóng
+
+            if can_kick:
+                self.kick(ball)
+
+        # =========================
+        # 4. ATTACK (Đè + Giữ + Ép sân)
+        # =========================
+        else:
+            # Lấy vị trí bóng tương lai để làm đà sút
+            shot_dir = (best_shot - pred_ball_pos)
+            if shot_dir.length() > 0:
+                target = pred_ball_pos - shot_dir.normalize() * 15
+            else:
+                target = pred_ball_pos
+
+            if is_possessing:
+                block_dir = ball.pos - opponent.pos
+                if block_dir.length() > 0:
+                    block_dir = block_dir.normalize()
+                    target = ball.pos - block_dir * 20
+
+                current_accel *= 0.15
+                if self.vel.length() > self.max_speed * 0.4:
+                    self.vel *= 0.8
+
+                push_dir = enemy_goal - ball.pos
+                if push_dir.length() > 0:
+                    ball.vel += push_dir.normalize() * 50 # Ép bóng trôi nhanh hơn
+
+        # =========================
+        # 5. MOVE
+        # =========================
+        direction = target - self.pos
+        if direction.length() > 2:
+            direction = direction.normalize()
+            self.vel += direction * current_accel * dt
+
+        # =========================
+        # 6. KICK LOGIC (Siết góc sút)
+        # =========================
+        if can_kick:
+            if opp_dist_to_ball < safe_margin:
+                self.kick(ball)
+                return
+
+            bot_to_ball = (ball.pos - self.pos)
+            ball_to_goal = (best_shot - ball.pos)
+
+            if bot_to_ball.length() > 0 and ball_to_goal.length() > 0:
+                bot_to_ball = bot_to_ball.normalize()
+                ball_to_goal = ball_to_goal.normalize()
+
+                # Siết góc sút (Từ 0.85 lên 0.92): Đòi hỏi Bot ngắm cực kỳ chuẩn và thẳng form mới vung chân
+                if bot_to_ball.dot(ball_to_goal) > 0.92:
+                    self.kick(ball)
 
     def handle_input(self, keys, dt):
         direction = pygame.Vector2(0, 0)
@@ -210,8 +355,8 @@ class Player:
             return
         if self.character == "Kunigami":
             self.skill_active = True
-            self.skill_timer = 5.0
-            self.skill_cooldown = 10.0
+            self.skill_timer = 10.0
+            self.skill_cooldown = 5.0
             self.mass = 1000  # cực nặng, khó bị đẩy văng ra khỏi sân
         if self.character == "Isagi":
             self.skill_active = True
@@ -221,8 +366,8 @@ class Player:
             other.can_kick = False  # đối thủ không thể đá bóng trong thời gian này
         if self.character == "Chigiri":
             self.skill_active = True
-            self.skill_timer = 5.0
-            self.skill_cooldown = 10.0
+            self.skill_timer = 10.0
+            self.skill_cooldown = 5.0
             self.max_speed += 50 
             self.vel *= 1.5
             self.damping = 0.9
