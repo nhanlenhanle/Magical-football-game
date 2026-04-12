@@ -1,10 +1,10 @@
 import pygame
 import sys
+import asyncio
 from config import *
 from ball import Ball
 from render import draw_scene
 from player import Player
-
 #------------------------ CONTROLS------------------------
 controls1 = {
     "up": pygame.K_w,
@@ -88,7 +88,7 @@ def draw_character_select(screen, font, player_number):
     screen.blit(chigiri, (250, 400))
 
     pygame.display.flip()
-def main():
+async def main():
     game_state = "MENU"  # MENU / PLAY_BOT / PLAY_PVP
     pygame.init()
 
@@ -107,6 +107,7 @@ def main():
     player_number = 1
     running = True
     while running:            
+        await asyncio.sleep(0)
         dt = clock.tick(60) / 1000.0
         if game_state == "MENU":
             draw_menu(screen, font)
@@ -114,6 +115,8 @@ def main():
             draw_character_select(screen, font, player_number)
         elif game_state == "PLAY_BOT":
             player2.is_bot = True
+            if (player_number == 1):
+                draw_character_select(screen, font, player_number)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -125,7 +128,7 @@ def main():
                     elif event.key == pygame.K_2:
                         game_state = "PLAY_PVP"
                     continue
-                elif game_state == "PLAY_PVP":
+                elif game_state == "PLAY_PVP" or (game_state == "PLAY_BOT" and player_number == 1):
                     if event.key == pygame.K_1 and player_number == 1:
                         player1.information("Isagi", color=(200, 40, 40))  # Đỏ
                         # player1.character = "Isagi"
@@ -159,7 +162,7 @@ def main():
                         # player2.character = "Bachira"
                         game_state = "PLAYING"
                     elif event.key == pygame.K_4 and player_number == 2:
-                        player2.infordmation("Kunigami", color=(128, 0, 128))  # Tím
+                        player2.information("Kunigami", color=(128, 0, 128))  # Tím
                         # player2.character = "Kunigami"
                         game_state = "PLAYING"
                     elif event.key == pygame.K_5 and player_number == 2:
@@ -167,7 +170,7 @@ def main():
                         # player2.character = "Chigiri"
                         game_state = "PLAYING"
                     continue
-                elif game_state == "PLAYING" or game_state == "PLAY_BOT":
+                elif game_state == "PLAYING" or (game_state == "PLAY_BOT" and player_number == 2):
                     if event.key == pygame.K_SPACE:
                         player1.kick(ball)
                     if event.key == pygame.K_RETURN:
@@ -179,6 +182,8 @@ def main():
                     continue
         if game_state != "PLAYING" and game_state != "PLAY_BOT":
             continue
+        if player_number == 1:
+            continue
         # UPDATE
         score_red, score_blue, ball_ok = update_game(
             ball, player1,player2, dt, score_red, score_blue
@@ -187,9 +192,10 @@ def main():
         # RENDER
         draw_scene(screen, ball, ball_ok, player1, player2, score_red, score_blue, font)
 
+
     pygame.quit()
     sys.exit()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
