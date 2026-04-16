@@ -17,15 +17,19 @@ class Ball:
     #     if keys[pygame.K_RIGHT]:
     #         self.vel.x += FORCE * dt
 
-    def update(self, dt):
-        # Damping kiểu Haxball
+    def update(self, player1, player2, dt):
         self.vel *= BALL_DAMPING
 
         # Giới hạn tốc độ tối đa
+        can_move = True
         if self.vel.length() > BALL_MAX_SPEED:
             self.vel.scale_to_length(BALL_MAX_SPEED)
-
-        self.pos += self.vel * dt
+        if player1.skill_active and player1.skill_timer > 0 and player1.character == "Isagi":
+            can_move = False
+        if player2.skill_active and player2.skill_timer > 0 and player2.character == "Isagi":
+            can_move = False
+        if can_move:
+            self.pos += self.vel * dt
 
     def handle_wall_collision(self):
 

@@ -37,7 +37,7 @@ def update_game(ball, player1, player2, dt, score_red, score_blue):
     player1.handle_wall_collision()
     player2.handle_wall_collision()
    # ball.apply_input(keys, dt)
-    ball.update(dt)
+    ball.update(player1,player2, dt)
     ball.handle_post_collision()
     player1.handle_ball_collision(ball)
     player2.handle_ball_collision(ball)

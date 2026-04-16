@@ -264,13 +264,43 @@ class Player:
     def goal_bank_target(intercept_pos):
         inset_x = FIELD_WIDTH - 6
         inset_y = 10
-        top_target = pygame.Vector2(inset_x, GOAL_TOP + inset_y)
-        bottom_target = pygame.Vector2(inset_x, GOAL_BOTTOM - inset_y)
+        top_target = pygame.Vector2(inset_x, GOAL_TOP - inset_y)
+        bottom_target = pygame.Vector2(inset_x, GOAL_BOTTOM + inset_y)
 
         if abs(intercept_pos.y - top_target.y) <= abs(intercept_pos.y - bottom_target.y):
             return top_target
         return bottom_target
 
+    @staticmethod
+    def is_player_ball_line_on_goal(self, ball):
+        A = self.pos
+        dir = ball.pos - self.pos
+        if dir.length_squared() < 1e-6:
+            return False
+        shot_dir = (ball.pos - self.pos).normalize()
+        final_vel = ball.vel + shot_dir * KICK_FORCE
+        goal_x = 0
+        if final_vel.x >= 0:
+            return False
+        if abs(final_vel.x) < 1e-6:
+            return False
+        t = (goal_x - A.x) / final_vel.x
+        if t <= 0:
+            return False
+        y_hit = A.y + final_vel.y * t
+        Radius=POST_RADIUS + BALL_RADIUS + 0.01
+        if GOAL_TOP + Radius <= y_hit <= GOAL_BOTTOM - Radius:
+            return True
+    def find_best_goal_target(ball_pos, goal_center, goal_top, goal_bottom):
+        
+        Radius=POST_RADIUS + BALL_RADIUS + 0.01
+        if GOAL_TOP + Radius <= goal_center.y <= GOAL_BOTTOM - Radius:
+            return goal_center
+
+        if ball_pos.y > goal_center.y:
+            return goal_top
+        else:
+            return goal_bottom
     @staticmethod
     def orbit_attack_target(player_pos, ball_pos, base_target):
         ball_to_target = base_target - ball_pos
@@ -295,7 +325,6 @@ class Player:
         if (candidate_a - player_pos).length_squared() <= (candidate_b - player_pos).length_squared():
             return candidate_a
         return candidate_b
-
     def bot_update(self, opponent, ball, dt):
         enemy_goal_center = pygame.Vector2(0, FIELD_HEIGHT // 2)
         my_goal = pygame.Vector2(FIELD_WIDTH, FIELD_HEIGHT // 2)
@@ -335,7 +364,7 @@ class Player:
 
                 if planned_shot.length_squared() > 1e-6:
                     planned_shot_direction = planned_shot.normalize()
-                    target = save_intercept - planned_shot_direction * (PLAYER_RADIUS + BALL_RADIUS + 2)
+                    target = save_intercept - planned_shot_direction * (PLAYER_RADIUS + BALL_RADIUS + 0.5)
                 else:
                     target = save_intercept
 
@@ -354,23 +383,28 @@ class Player:
             state = "DEFEND"
         else:
             state = "ATTACK"
-
+        #nơi cái phần attack_vec tôi muốn thêm cái attack_real ý là vì ball dang có vel thì với attack_vec không thì nó ko chính xác, attack_vec nó được xem như cái mong muốn; thì tôi có công thức attack_vec-ball.vel=attack_vec_real có đúng ko
         if state == "DEFEND":
             target = Player.jockey_position(self, ball, opponent)
         elif state == "ATTACK":
-            attack_vec = enemy_goal_center - ball.pos
+            # Chọn điểm đích tốt nhất từ 3 điểm: center, top, bottom
+            goal_center = enemy_goal_center
+            goal_top = pygame.Vector2(0, GOAL_TOP + 0.1)
+            goal_bottom = pygame.Vector2(0, GOAL_BOTTOM - 0.1)
             
+            best_goal_target = Player.find_best_goal_target(ball.pos, goal_center, goal_top, goal_bottom)
+            attack_vec_excepted = best_goal_target - ball.pos
+            attack_vec = attack_vec_excepted - ball.vel
             if attack_vec.length_squared() > 1e-6:
                 planned_shot_direction = attack_vec.normalize()
-                target = ball.pos - planned_shot_direction * (PLAYER_RADIUS + BALL_RADIUS + 3)
+                target = ball.pos - planned_shot_direction * (PLAYER_RADIUS + BALL_RADIUS+0.1)
                 # vel = pos - t
                 bot_to_ball = ball.pos - self.pos
                 if bot_to_ball.length_squared() > 1e-12:
                     behind_alignment = bot_to_ball.normalize().dot(planned_shot_direction)
                 else:
                     behind_alignment = 1.0
-
-                if behind_alignment > 0.989:
+                if behind_alignment > 0.99 or Player.is_player_ball_line_on_goal(self,ball):
                     should_kick = True
                 else:
                     should_kick = False
@@ -380,10 +414,10 @@ class Player:
                 should_kick = False
 
         direction = target - self.pos
-
-        if direction.length() > 2:
+        hack_speed = 1.05
+        if direction.length() > 0.5:
             direction = direction.normalize()
-            self.vel += direction * self.acceleration * dt
+            self.vel += direction * self.acceleration * dt*hack_speed
 
         if should_kick:
             if diff.length() < PLAYER_RADIUS + BALL_RADIUS + KICK_RANGE:
@@ -437,7 +471,7 @@ class Player:
                     self.mass = PLAYER_MASS
                 if self.character == "Isagi":
                     other.can_kick = True
-                    other.vel = pygame.Vector2(0, 0)  # trả lại tốc độ cho đối thủ sau khi skill kết thúc
+                    other.vel = pygame.Vector2(0, 0)  
                 if self.character == "Chigiri":
                     self.max_speed = PLAYER_MAX_SPEED
                     self.damping = PLAYER_DAMPING
@@ -447,9 +481,9 @@ class Player:
 
             else:
                 if self.character == "Isagi":
-                    other.vel *= 0.005  # tiếp tục duy trì hiệu ứng giảm tốc độ đối thủ trong thời gian skill còn hoạt động
+                    other.vel = pygame.Vector2(0,0)
                 if self.character == "Chigiri":
-                    self.vel *= 1.1 # tiếp tục duy trì hiệu ứng tăng tốc độ của bản thân trong thời gian skill còn hoạt động
+                    self.vel *= 1.1 
                 if self.character == "Nagi":
                     diff = ball.pos - self.pos
                     if diff.length() < 200:
