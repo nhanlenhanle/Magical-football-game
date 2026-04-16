@@ -2,7 +2,7 @@ import pygame
 from config import *
 
 
-def draw_scene(screen, ball, ball_ok, player1, player2, score_red, score_blue, font):
+def draw_scene(screen, ball, ball_ok, player1, player2, score_red, score_blue, font, effects=None, debug_overlay=None):
 
     # =========================
     # BACKGROUND
@@ -144,4 +144,8 @@ def draw_scene(screen, ball, ball_ok, player1, player2, score_red, score_blue, f
     )
     player1.draw(screen)
     player2.draw(screen)
+    if effects is not None:
+        effects.draw(screen)
+    if debug_overlay is not None:
+        debug_overlay.draw(screen, ball, player1, player2)
     pygame.display.flip()

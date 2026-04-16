@@ -3,6 +3,8 @@ import sys
 import asyncio
 from config import *
 from ball import Ball
+from debug import DebugOverlay
+from effect import SkillEffectManager
 from render import draw_scene
 from player import Player
 #------------------------ CONTROLS------------------------
@@ -104,8 +106,10 @@ async def main():
     player2 = Player(FIELD_WIDTH * 3 // 4, FIELD_HEIGHT // 2, COLOR_TEAM_BLUE, controls2)
     score_red = 0
     score_blue = 0
+    debug_overlay = DebugOverlay()
+    effects = SkillEffectManager()
     player_number = 1
-    running = True
+    running = True 
     while running:            
         await asyncio.sleep(0)
         dt = clock.tick(60) / 1000.0
@@ -122,6 +126,8 @@ async def main():
             if event.type == pygame.QUIT:
                 running = False
             if event.type == pygame.KEYDOWN:
+                if debug_overlay.handle_event(event):
+                    continue
                 if game_state == "MENU":
                     if event.key == pygame.K_1:
                         game_state = "PLAY_BOT"
@@ -188,9 +194,10 @@ async def main():
         score_red, score_blue, ball_ok = update_game(
             ball, player1,player2, dt, score_red, score_blue
         )
+        effects.update(dt, ball, player1, player2)
 
         # RENDER
-        draw_scene(screen, ball, ball_ok, player1, player2, score_red, score_blue, font)
+        draw_scene(screen, ball, ball_ok, player1, player2, score_red, score_blue, font, effects, debug_overlay)
 
 
     pygame.quit()

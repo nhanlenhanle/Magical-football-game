@@ -7,14 +7,19 @@ class Player:
         self.kick_timer = 0
         self.pos = pygame.Vector2(x, y)
         self.vel = pygame.Vector2(0, 0)
+        self.spawn_x = x
         self.color = color
         self.controls = control
+
+        self.kicked = False
 
         self.ball_ok=True
         self.acceleration = PLAYER_ACCELERATION
         self.damping = PLAYER_DAMPING
         self.max_speed = PLAYER_MAX_SPEED
         self.can_kick = True
+        self.just_kicked = False
+        self.last_kick_direction = pygame.Vector2(0, 0)
         #------------------------- CHARACTER SELECTION ------------------------
         self.mass = PLAYER_MASS
         self.character = None
@@ -23,6 +28,22 @@ class Player:
         self.skill_cooldown = 0
         #------------------------- BOT ------------------------
         self.is_bot = False
+        self._reset_debug_info()
+
+    def _reset_debug_info(self):
+        self.debug_info = {
+            "state": "IDLE",
+            "target": None,
+            "intercept": None,
+            "shot_direction": pygame.Vector2(0, 0),
+            "should_kick": False,
+            "is_pressed": False,
+            "time_to_ball": 0.0,
+            "enemy_time_to_ball": 0.0,
+            "ball_distance": 0.0,
+            "path_clear": None,
+        }
+
     @staticmethod
     def simulate_ball_step(pos, vel, dt):
         vel *= BALL_DAMPING
@@ -120,47 +141,265 @@ class Player:
             t_move = t_acc + t_const
 
         return t_perp + t_stop + t_move
-    def find_intercept(player, ball, dt):
+    @staticmethod
+    def find_intercept_info(player, ball, dt):
         max_t = 2.0
+        sim_dt = max(1 / 180, min(dt, 1 / 60))
 
         pos = ball.pos.copy()
         vel = ball.vel.copy()
-
-        time = 0
+        time = 0.0
 
         best_pos = pos.copy()
+        best_vel = vel.copy()
+        best_time = 0.0
         best_diff = float('inf')
 
         while time < max_t:
-            pos, vel = Player.simulate_ball_step(pos, vel, dt)
+            pos, vel = Player.simulate_ball_step(pos, vel, sim_dt)
+            time += sim_dt
 
             t_needed = Player.estimate_time(player, pos)
 
             if t_needed <= time:
-                return pos
+                return {"pos": pos.copy(), "vel": vel.copy(), "time": time}
 
             diff = abs(t_needed - time)
             if diff < best_diff:
                 best_diff = diff
                 best_pos = pos.copy()
+                best_vel = vel.copy()
+                best_time = time
 
-            time += dt
+        return {"pos": best_pos, "vel": best_vel, "time": best_time}
 
-        return best_pos
+    @staticmethod
+    def find_intercept(player, ball, dt):
+        return Player.find_intercept_info(player, ball, dt)["pos"]
+    def jockey_position(self, ball, opponent):
+        my_goal = pygame.Vector2(FIELD_WIDTH, FIELD_HEIGHT // 2)
+        
+        goal_to_ball_vec = opponent.pos - my_goal
+        dist_to_goal = goal_to_ball_vec.length()
+        
+        if dist_to_goal == 0:
+            return my_goal
+            
+        dir_to_ball = goal_to_ball_vec.normalize()
+        ball_control_dist = 0 # (ball.pos - opponent.pos).length()
+        
+        # 1. KHI NÀO PHẢI LAO LÊN TẮC BÓNG (COMMIT)?
+        # - Địch để bóng dài (mất kiểm soát)
+        # - Hoặc bóng đã vào vùng nguy hiểm (cách gôn < 180 pixel)
+        if ball_control_dist > PLAYER_RADIUS + BALL_RADIUS + 30 or dist_to_goal < 180:
+            return ball.pos  # Lao thẳng vào bóng
+
+        # 2. THU HẸP GÓC ĐỘNG (DYNAMIC JOCKEYING)
+        # Ở xa thì lùi nhiều (max 100), càng gần gôn thì khoảng cách lùi càng giảm dần
+        dynamic_buffer = min(100, dist_to_goal * 0.3) 
+        
+        target = opponent.pos - dir_to_ball * dynamic_buffer
+
+        return target
+    @staticmethod
+    def ball_fly_goal(ball, dt, goal_x=FIELD_WIDTH):
+        max_t = 3.0
+        sim_dt = max(1 / 180, min(dt, 1 / 60))
+        pos = ball.pos.copy()
+        vel = ball.vel.copy()
+        time = 0.0
+        last_pos = pos.copy()
+        last_vel = vel.copy()
+
+        while time < max_t:
+            last_pos = pos.copy()
+            last_vel = vel.copy()
+            pos, vel = Player.simulate_ball_step(pos, vel, sim_dt)
+            time += sim_dt
+
+            if goal_x >= FIELD_WIDTH:
+                if GOAL_TOP < pos.y < GOAL_BOTTOM and pos.x - BALL_RADIUS / 3 > FIELD_WIDTH:
+                    return {
+                        "time": time,
+                        "pos": pos.copy(),
+                        "vel": vel.copy(),
+                        "last_pos": last_pos,
+                        "last_vel": last_vel,
+                    }
+            else:
+                if GOAL_TOP < pos.y < GOAL_BOTTOM and pos.x + BALL_RADIUS / 3 < 0:
+                    return {
+                        "time": time,
+                        "pos": pos.copy(),
+                        "vel": vel.copy(),
+                        "last_pos": last_pos,
+                        "last_vel": last_vel,
+                    }
+
+            if vel.length_squared() < 25:
+                break
+
+        return None
+
+    @staticmethod
+    def should_bank_save(player, intercept_pos, intercept_vel, my_goal):
+        goal_vec = my_goal - intercept_pos
+        if goal_vec.length_squared() <= 1e-6:
+            return False
+
+        goal_dir = goal_vec.normalize()
+        bot_run_vec = intercept_pos - player.pos
+
+        bot_dot = 0.0
+        if bot_run_vec.length_squared() > 1e-6:
+            bot_dot = bot_run_vec.normalize().dot(goal_dir)
+
+        ball_dot = 0.0
+        if intercept_vel.length_squared() > 1e-6:
+            ball_dot = intercept_vel.normalize().dot(goal_dir)
+
+        return bot_dot > 0.15 and ball_dot > 0.15
+
+    @staticmethod
+    def goal_bank_target(intercept_pos):
+        inset_x = FIELD_WIDTH - 6
+        inset_y = 10
+        top_target = pygame.Vector2(inset_x, GOAL_TOP + inset_y)
+        bottom_target = pygame.Vector2(inset_x, GOAL_BOTTOM - inset_y)
+
+        if abs(intercept_pos.y - top_target.y) <= abs(intercept_pos.y - bottom_target.y):
+            return top_target
+        return bottom_target
+
+    @staticmethod
+    def orbit_attack_target(player_pos, ball_pos, base_target):
+        ball_to_target = base_target - ball_pos
+        ball_to_player = player_pos - ball_pos
+
+        if ball_to_target.length_squared() <= 1e-6 or ball_to_player.length_squared() <= 1e-6:
+            return base_target
+
+        side_alignment = ball_to_player.normalize().dot(ball_to_target.normalize())
+        if side_alignment >= -0.15:
+            return base_target
+
+        perpendicular = pygame.Vector2(-ball_to_target.y, ball_to_target.x)
+        if perpendicular.length_squared() <= 1e-6:
+            return base_target
+
+        perpendicular = perpendicular.normalize()
+        orbit_radius = PLAYER_RADIUS + BALL_RADIUS + 18
+        candidate_a = base_target + perpendicular * orbit_radius
+        candidate_b = base_target - perpendicular * orbit_radius
+
+        if (candidate_a - player_pos).length_squared() <= (candidate_b - player_pos).length_squared():
+            return candidate_a
+        return candidate_b
+
     def bot_update(self, opponent, ball, dt):
-        target_me = Player.find_intercept(self, ball, dt)
-        target_enemy = Player.find_intercept(opponent, ball, dt)
+        enemy_goal_center = pygame.Vector2(0, FIELD_HEIGHT // 2)
+        my_goal = pygame.Vector2(FIELD_WIDTH, FIELD_HEIGHT // 2)
 
-        t_me = Player.estimate_time(self, target_me)
-        t_enemy = Player.estimate_time(opponent, target_enemy)
-        target_pos = self.pos
-        if t_me <= t_enemy:
+        bot_intercept_info = Player.find_intercept_info(self, ball, dt)
+        bot_intercept = bot_intercept_info["pos"]
+        t_bot = Player.estimate_time(self, bot_intercept)
+
+        enemy_intercept = Player.find_intercept(opponent, ball, dt)
+        t_enemy = Player.estimate_time(opponent, enemy_intercept)
+
+        target = self.pos
+        state = "IDLE"
+        should_kick = False
+        is_pressed = False
+        planned_shot_direction = pygame.Vector2(0, 0)
+        path_clear = None
+        goal_threat = Player.ball_fly_goal(ball, dt, my_goal.x)
+        diff = ball.pos - self.pos
+        if goal_threat or (t_bot - t_enemy < 0.15 and t_bot - t_enemy > -0.15):
+            save_intercept = bot_intercept
+            save_intercept_vel = bot_intercept_info["vel"]
+
+            if my_goal.x >= FIELD_WIDTH and save_intercept.x > FIELD_WIDTH - BALL_RADIUS:
+                save_intercept = goal_threat["last_pos"].copy()
+                save_intercept_vel = goal_threat["last_vel"].copy()
+            elif my_goal.x <= 0 and save_intercept.x < BALL_RADIUS:
+                save_intercept = goal_threat["last_pos"].copy()
+                save_intercept_vel = goal_threat["last_vel"].copy()
+
+            bot_intercept = save_intercept
+            t_bot = Player.estimate_time(self, bot_intercept)
+            if Player.should_bank_save(self, save_intercept, save_intercept_vel, my_goal):
+                state = "SAVE_WALL"
+                bank_target = Player.goal_bank_target(save_intercept)
+                planned_shot = bank_target - save_intercept
+
+                if planned_shot.length_squared() > 1e-6:
+                    planned_shot_direction = planned_shot.normalize()
+                    target = save_intercept - planned_shot_direction * (PLAYER_RADIUS + BALL_RADIUS + 2)
+                else:
+                    target = save_intercept
+
+                if (self.pos - target).length() < 14:
+                    should_kick = True
+            else:
+                state = "SAVE_CLEAR"
+                target = save_intercept
+                clear_vec = save_intercept - my_goal
+                if clear_vec.length_squared() > 1e-6:
+                    planned_shot_direction = clear_vec.normalize()
+                should_kick = True
+        elif diff.length() < PLAYER_RADIUS + BALL_RADIUS + KICK_RANGE:
             state = "ATTACK"
-            target_pos = target_me
-            direction = target_pos - self.pos
-            self.vel += direction.normalize() * self.acceleration * dt
-        elif t_enemy  < t_me:
+        elif t_bot > t_enemy + 0.15:
             state = "DEFEND"
+        else:
+            state = "ATTACK"
+
+        if state == "DEFEND":
+            target = Player.jockey_position(self, ball, opponent)
+        elif state == "ATTACK":
+            attack_vec = enemy_goal_center - ball.pos
+            
+            if attack_vec.length_squared() > 1e-6:
+                planned_shot_direction = attack_vec.normalize()
+                target = ball.pos - planned_shot_direction * (PLAYER_RADIUS + BALL_RADIUS + 3)
+                # vel = pos - t
+                bot_to_ball = ball.pos - self.pos
+                if bot_to_ball.length_squared() > 1e-12:
+                    behind_alignment = bot_to_ball.normalize().dot(planned_shot_direction)
+                else:
+                    behind_alignment = 1.0
+
+                if behind_alignment > 0.989:
+                    should_kick = True
+                else:
+                    should_kick = False
+                    target = Player.orbit_attack_target(self.pos, ball.pos, target)
+            else:
+                target = ball.pos
+                should_kick = False
+
+        direction = target - self.pos
+
+        if direction.length() > 2:
+            direction = direction.normalize()
+            self.vel += direction * self.acceleration * dt
+
+        if should_kick:
+            if diff.length() < PLAYER_RADIUS + BALL_RADIUS + KICK_RANGE:
+                self.kick(ball)
+
+        self.debug_info["state"] = state
+        self.debug_info["target"] = target.copy()
+        self.debug_info["intercept"] = bot_intercept.copy()
+        self.debug_info["shot_direction"] = planned_shot_direction.copy()
+        self.debug_info["should_kick"] = should_kick
+        self.debug_info["is_pressed"] = is_pressed
+        self.debug_info["time_to_ball"] = t_bot
+        self.debug_info["enemy_time_to_ball"] = t_enemy
+        self.debug_info["ball_distance"] = (ball.pos - self.pos).length()
+        self.debug_info["path_clear"] = path_clear
+
     def handle_input(self, keys, dt):
         direction = pygame.Vector2(0, 0)
 
@@ -218,6 +457,23 @@ class Player:
                         ball.vel -= direction * 200 * dt
         if self.skill_cooldown > 0:
             self.skill_cooldown -= dt
+
+        self.debug_info["ball_distance"] = (ball.pos - self.pos).length()
+        if not self.is_bot:
+            preview_direction = pygame.Vector2(0, 0)
+            diff = ball.pos - self.pos
+            if diff.length_squared() > 1e-6:
+                preview_direction = diff.normalize()
+
+            self.debug_info["state"] = "MANUAL"
+            self.debug_info["target"] = None
+            self.debug_info["intercept"] = ball.pos.copy()
+            self.debug_info["shot_direction"] = preview_direction
+            self.debug_info["should_kick"] = self.can_kick and self.kick_timer <= 0 and self.debug_info["ball_distance"] < PLAYER_RADIUS + BALL_RADIUS + KICK_RANGE
+            self.debug_info["is_pressed"] = False
+            self.debug_info["time_to_ball"] = Player.estimate_time(self, ball.pos)
+            self.debug_info["enemy_time_to_ball"] = Player.estimate_time(other, ball.pos)
+            self.debug_info["path_clear"] = None
     #------------------------ COLLISIONS ------------------------
     # Xử lý va chạm giữa hai player
     def handle_player_collision(self, other):
@@ -301,7 +557,7 @@ class Player:
         min_dist = PLAYER_RADIUS + BALL_RADIUS
 
         if distance < min_dist and distance != 0:
-
+            self.kicked=False
             normal = diff.normalize()
             overlap = min_dist - distance
 
@@ -342,7 +598,10 @@ class Player:
 
             direction = diff.normalize()
             ball.vel += direction * KICK_FORCE
+            self.kicked=True
             self.kick_timer = KICK_COOLDOWN
+            self.just_kicked = True
+            self.last_kick_direction = direction.copy()
     #------------------------ SKILL ------------------------
     def activate_skill(self,other):
         if self.skill_cooldown > 0:
@@ -388,6 +647,10 @@ class Player:
     def reset(self,x,y,color,control):
         self.pos = pygame.Vector2(x, y)
         self.vel = pygame.Vector2(0, 0)
+        self.spawn_x = x
         self.kick_timer = 0
         self.color = color
         self.controls = control
+        self.just_kicked = False
+        self.last_kick_direction = pygame.Vector2(0, 0)
+        self._reset_debug_info()
