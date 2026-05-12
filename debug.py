@@ -8,13 +8,17 @@ from config import BALL_RADIUS, FIELD_HEIGHT, FIELD_WIDTH, OFFSET_X, OFFSET_Y
 
 
 def _vector_angle_deg(vec: pygame.Vector2) -> float | None:
+    """Trả về góc theo độ của một vector khác 0 để hiển thị trên màn hình."""
     if vec.length_squared() <= 1e-6:
         return None
     return math.degrees(math.atan2(-vec.y, vec.x))
 
 
 class DebugOverlay:
+    """Bảng debug trong game để xem trạng thái AI, vector và phím điều khiển."""
+
     def __init__(self) -> None:
+        """Khởi tạo các tùy chọn hiển thị debug và font tạo khi cần."""
         self.enabled = False
         self.show_vectors = True
         self.show_text = True
@@ -23,6 +27,7 @@ class DebugOverlay:
         self._font_tiny: pygame.font.Font | None = None
 
     def handle_event(self, event: pygame.event.Event) -> bool:
+        """Xử lý phím tắt debug và trả về True nếu event đã được dùng."""
         if event.type != pygame.KEYDOWN:
             return False
 
@@ -41,6 +46,7 @@ class DebugOverlay:
         return False
 
     def draw(self, screen: pygame.Surface, ball, player1, player2) -> None:
+        """Vẽ các lớp debug đang bật lên trên màn hình trận đấu."""
         if not self.enabled:
             return
 
@@ -54,12 +60,14 @@ class DebugOverlay:
             self._draw_help(screen)
 
     def _ensure_fonts(self) -> None:
+        """Tạo font debug trong lần đầu overlay được vẽ."""
         if self._font_small is None:
             self._font_small = pygame.font.SysFont("Consolas", 16)
         if self._font_tiny is None:
             self._font_tiny = pygame.font.SysFont("Consolas", 13)
 
     def _draw_pitch_guides(self, screen: pygame.Surface, ball, player1, player2) -> None:
+        """Vẽ các đường hướng dẫn vector quanh bóng và cầu thủ."""
         ball_pos = self._screen_pos(ball.pos)
         pygame.draw.circle(screen, (255, 245, 120), ball_pos, BALL_RADIUS + 10, 1)
 
@@ -67,6 +75,7 @@ class DebugOverlay:
         self._draw_player_vectors(screen, ball, player2, (100, 190, 255))
 
     def _draw_player_vectors(self, screen: pygame.Surface, ball, player, color: tuple[int, int, int]) -> None:
+        """Vẽ vector mục tiêu, chặn bóng, hướng sút và đường nối bóng của cầu thủ."""
         player_pos = self._screen_pos(player.pos)
         info = getattr(player, "debug_info", {})
 
@@ -90,6 +99,7 @@ class DebugOverlay:
         pygame.draw.line(screen, (190, 190, 190), player_pos, self._screen_pos(ball.pos), 1)
 
     def _draw_panel(self, screen: pygame.Surface, ball, player1, player2) -> None:
+        """Vẽ bảng thông tin ngắn về hai cầu thủ và bóng."""
         panel = pygame.Surface((360, 170), pygame.SRCALPHA)
         panel.fill((12, 16, 22, 190))
         screen.blit(panel, (12, 12))
@@ -108,6 +118,7 @@ class DebugOverlay:
             y += 28
 
     def _build_player_line(self, label: str, player, ball) -> str:
+        """Tạo một dòng thông tin debug đã định dạng cho cầu thủ."""
         info = getattr(player, "debug_info", {})
         shot_dir = self._get_shot_direction(player, ball)
         angle = _vector_angle_deg(shot_dir) if shot_dir is not None else None
@@ -126,6 +137,7 @@ class DebugOverlay:
         )
 
     def _draw_help(self, screen: pygame.Surface) -> None:
+        """Vẽ gợi ý phím tắt debug ở cạnh dưới sân."""
         help_text = "F3 debug  F4 vectors  F5 text  F6 help"
         rendered = self._font_tiny.render(help_text, True, (245, 245, 245))
         rect = rendered.get_rect(bottomleft=(14, OFFSET_Y + FIELD_HEIGHT + 28))
@@ -134,6 +146,7 @@ class DebugOverlay:
         screen.blit(rendered, rect)
 
     def _get_shot_direction(self, player, ball) -> pygame.Vector2 | None:
+        """Trả về hướng sút hiện tại, nếu thiếu thì dùng hướng từ cầu thủ tới bóng."""
         info = getattr(player, "debug_info", {})
         shot_dir = info.get("shot_direction")
         if isinstance(shot_dir, pygame.Vector2) and shot_dir.length_squared() > 1e-6:
@@ -146,6 +159,7 @@ class DebugOverlay:
 
     @staticmethod
     def _screen_pos(pos: pygame.Vector2) -> tuple[int, int]:
+        """Đổi tọa độ trong sân sang tọa độ nguyên trên màn hình."""
         x = int(pos.x + OFFSET_X)
         y = int(pos.y + OFFSET_Y)
         return x, y

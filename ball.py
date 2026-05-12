@@ -3,7 +3,10 @@ from config import *
 
 
 class Ball:
+    """Đối tượng quả bóng, gồm di chuyển, va chạm và kiểm tra bàn thắng."""
+
     def __init__(self):
+        """Đặt bóng ở giữa sân với vận tốc ban đầu bằng 0."""
         self.pos = pygame.Vector2(FIELD_WIDTH // 2, FIELD_HEIGHT // 2)
         self.vel = pygame.Vector2(0, 0)
 
@@ -18,20 +21,23 @@ class Ball:
     #         self.vel.x += FORCE * dt
 
     def update(self, player1, player2, dt):
-        self.vel *= BALL_DAMPING
+        """Cập nhật chuyển động của bóng trong một frame."""
 
         # Giới hạn tốc độ tối đa
         can_move = True
-        if self.vel.length() > BALL_MAX_SPEED:
-            self.vel.scale_to_length(BALL_MAX_SPEED)
         if player1.skill_active and player1.skill_timer > 0 and player1.character == "Isagi":
             can_move = False
         if player2.skill_active and player2.skill_timer > 0 and player2.character == "Isagi":
             can_move = False
         if can_move:
+            self.vel *= BALL_DAMPING
+        if self.vel.length() > BALL_MAX_SPEED:
+            self.vel.scale_to_length(BALL_MAX_SPEED)
+        if can_move:
             self.pos += self.vel * dt
 
     def handle_wall_collision(self):
+        """Xử lý va chạm tường và trả về sự kiện ghi bàn nếu bóng vào gôn."""
 
         # Top
         if self.pos.y - BALL_RADIUS < 0:
@@ -63,6 +69,7 @@ class Ball:
 
         return None
     def handle_post_collision(self):
+        """Xử lý va chạm giữa bóng và bốn cột gôn."""
 
         posts = [
             pygame.Vector2(0, GOAL_TOP),
@@ -88,8 +95,8 @@ class Ball:
 
                 # Reflect velocity
                 self.vel = self.vel - 2 * self.vel.dot(normal) * normal
-                # nhẹ damping sau va chạm vào cột
                 self.vel *= 0.9
     def reset(self):
+        """Đưa bóng về giữa sân và dừng bóng lại."""
         self.pos = pygame.Vector2(FIELD_WIDTH // 2, FIELD_HEIGHT // 2)
         self.vel = pygame.Vector2(0, 0)

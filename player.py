@@ -3,7 +3,10 @@ from config import *
 
 
 class Player:
+    """Cầu thủ do người chơi hoặc bot điều khiển, gồm di chuyển, va chạm, AI và kỹ năng."""
+
     def __init__(self, x, y, color,control):
+        """Tạo cầu thủ tại vị trí spawn với màu và bộ phím điều khiển."""
         self.kick_timer = 0
         self.pos = pygame.Vector2(x, y)
         self.vel = pygame.Vector2(0, 0)
@@ -26,11 +29,16 @@ class Player:
         self.skill_active = False
         self.skill_timer = 0
         self.skill_cooldown = 0
+        
+        self.time_rewind = False
+        self.rewind_timer = 0
         #------------------------- BOT ------------------------
         self.is_bot = False
         self._reset_debug_info()
         self.cache_target_clear=pygame.Vector2(0,0)
+        
     def _reset_debug_info(self):
+        """Đặt lại thông tin debug từng frame dùng cho debug overlay."""
         self.debug_info = {
             "state": "IDLE",
             "target": None,
@@ -46,6 +54,7 @@ class Player:
 
     @staticmethod
     def simulate_ball_step(pos, vel, dt):
+        """Mô phỏng một bước vật lý bóng đơn giản để AI dự đoán."""
         vel *= BALL_DAMPING
         pos += vel * dt
 
@@ -95,6 +104,7 @@ class Player:
         return pos, vel
     @staticmethod
     def estimate_time(player, target):
+        """Ước lượng thời gian cầu thủ cần để đến một điểm mục tiêu."""
         diff = target - player.pos
         dist = diff.length()
 
@@ -140,6 +150,7 @@ class Player:
         return t_perp + t_stop + t_move
     @staticmethod
     def find_intercept_info(player, ball, dt):
+        """Dự đoán vị trí bóng trong tương lai mà cầu thủ có thể chạm tới tốt nhất."""
         max_t = 2.0
         sim_dt = max(1 / 180, min(dt, 1 / 60))
 
@@ -169,11 +180,15 @@ class Player:
                 best_time = time
 
         return {"pos": best_pos, "vel": best_vel, "time": best_time}
-
+    #Hàm đưa ra vị trí với thời gian ngắn nhất mà bot có thể tới
     @staticmethod
     def find_intercept(player, ball, dt):
+        """Trả về riêng vị trí dự đoán để cầu thủ chặn bóng."""
         return Player.find_intercept_info(player, ball, dt)["pos"]
+    #Hàm phòng thủ
+    #Phòng thủ bằng cách chạy theo tia từ player.pos đến điểm giữa của gôn bot
     def jockey_position(self, ball, opponent):
+        """Chọn vị trí phòng thủ giữa đối thủ và gôn của cầu thủ này."""
         my_goal = pygame.Vector2(FIELD_WIDTH, FIELD_HEIGHT // 2)
         
         goal_to_ball_vec = opponent.pos - my_goal
@@ -263,6 +278,7 @@ class Player:
     #         return top_target
     #     return bottom_target
     def find_best_clear(self,ball,bot_intercept):
+        """Chọn mục tiêu phá bóng an toàn và dễ tiếp cận hơn cho bot."""
         dir = self.pos - ball.pos
         target_top = pygame.Vector2(FIELD_WIDTH-5,5)
         target_bottom = pygame.Vector2(FIELD_WIDTH-5,FIELD_HEIGHT-5)
@@ -274,6 +290,7 @@ class Player:
         return target_bottom
     @staticmethod
     def is_player_ball_line_on_goal(self, ball):
+        """Kiểm tra cầu thủ có thể sút bóng về phía gôn trái hay không."""
         A = self.pos
         dir = ball.pos - self.pos
         if dir.length_squared() < 1e-6:
@@ -293,6 +310,7 @@ class Player:
         if GOAL_TOP + Radius <= y_hit <= GOAL_BOTTOM - Radius:
             return True
     def is_not_player_ball_line_on_goal(self, ball):
+        """Kiểm tra cầu thủ có thể phá bóng khỏi vùng gôn phải hay không."""
         A = self.pos
         dir = ball.pos - self.pos
         if dir.length_squared() < 1e-6:
@@ -312,6 +330,7 @@ class Player:
         if GOAL_TOP - Radius > y_hit or  y_hit > GOAL_BOTTOM + Radius:
             return True
     def find_best_goal_target(ball_pos, goal_center, goal_top, goal_bottom):
+        """Chọn điểm hợp lệ tốt nhất trong miệng gôn để sút."""
         
         Radius=POST_RADIUS + BALL_RADIUS + 0.01
         if GOAL_TOP + Radius <= goal_center.y <= GOAL_BOTTOM - Radius:
@@ -323,6 +342,7 @@ class Player:
             return goal_bottom
     @staticmethod
     def orbit_attack_target(player_pos, ball_pos, base_target):
+        """Dịch mục tiêu tiếp cận vòng quanh bóng khi đường vào trực tiếp không tốt."""
         ball_to_target = base_target - ball_pos
         ball_to_player = player_pos - ball_pos
 
@@ -346,10 +366,13 @@ class Player:
             return candidate_a
         return candidate_b
     def NEED_SPAM(self, opponent, ball):
+        """Trả về True nếu bot nên áp sát và spam tranh bóng ở cự ly gần."""
         if (ball.pos-self.pos).normalize().dot((ball.pos-opponent.pos).normalize())<0 and (ball.pos-self.pos).normalize().x<0:
            return((self.pos-opponent.pos).length() - (PLAYER_RADIUS*2 + BALL_RADIUS + 150) <= 0)
         return False
     def bot_update(self, opponent, ball, dt):
+        """Cập nhật di chuyển, chọn mục tiêu và quyết định sút của bot trong một frame."""
+
         enemy_goal_center = pygame.Vector2(0, FIELD_HEIGHT // 2)
         my_goal = pygame.Vector2(FIELD_WIDTH, FIELD_HEIGHT // 2)
 
@@ -366,41 +389,8 @@ class Player:
         is_pressed = False
         planned_shot_direction = pygame.Vector2(0, 0)
         path_clear = None
-        #goal_threat = Player.ball_fly_goal(ball, dt, my_goal.x)
         diff = ball.pos - self.pos
-        # if goal_threat or (t_bot - t_enemy < 0.15 and t_bot - t_enemy > -0.15 and diff.normolize()>0) :
-        #     save_intercept = bot_intercept
-        #     save_intercept_vel = bot_intercept_info["vel"]
 
-        #     if my_goal.x >= FIELD_WIDTH and save_intercept.x > FIELD_WIDTH - BALL_RADIUS:
-        #         save_intercept = goal_threat["last_pos"].copy()
-        #         save_intercept_vel = goal_threat["last_vel"].copy()
-        #     elif my_goal.x <= 0 and save_intercept.x < BALL_RADIUS:
-        #         save_intercept = goal_threat["last_pos"].copy()
-        #         save_intercept_vel = goal_threat["last_vel"].copy()
-
-        #     bot_intercept = save_intercept
-        #     t_bot = Player.estimate_time(self, bot_intercept)
-        #     if Player.should_bank_save(self, save_intercept, save_intercept_vel, my_goal):
-        #         state = "SAVE_WALL"
-        #         bank_target = Player.goal_bank_target(save_intercept)
-        #         planned_shot = bank_target - save_intercept
-
-        #         if planned_shot.length_squared() > 1e-6:
-        #             planned_shot_direction = planned_shot.normalize()
-        #             target = save_intercept - planned_shot_direction * (PLAYER_RADIUS + BALL_RADIUS + 0.5)
-        #         else:
-        #             target = save_intercept
-
-        #         if (self.pos - target).length() < 14:
-        #             should_kick = True
-        #     else:
-        #         state = "SAVE_CLEAR"
-        #         target = save_intercept
-        #         clear_vec = save_intercept - my_goal
-        #         if clear_vec.length_squared() > 1e-6:
-        #             planned_shot_direction = clear_vec.normalize()
-        #         should_kick = True
         if (ball.pos-self.pos).normalize().dot((ball.pos-opponent.pos).normalize())<0 and (ball.pos-self.pos).normalize().x<0:
             ok = 0.3
         else:
@@ -417,12 +407,9 @@ class Player:
             state = "ATTACK"
         else:
             state = "ATTACK"
-        #nơi cái phần attack_vec tôi muốn thêm cái attack_real ý là vì ball dang có vel thì với attack_vec không thì nó ko chính xác, attack_vec nó được xem như cái mong muốn; thì tôi có công thức attack_vec-ball.vel=attack_vec_real có đúng ko
         if state == "CLEAR":
             vec_excepted = self.find_best_clear(ball,bot_intercept) - ball.pos
-            # print(vec_excepted)
             vec = vec_excepted - ball.vel
-            #vec = vec_excepted
             if vec.length_squared() > 1e-6:
                 planned_shot_direction = vec.normalize()
                 bot_to_ball = ball.pos - self.pos
@@ -444,7 +431,6 @@ class Player:
             target = Player.jockey_position(self, ball, opponent)
         elif state == "ATTACK":
             self.cache_target_clear=pygame.Vector2(0,0)
-            # Chọn điểm đích tốt nhất từ 3 điểm: center, top, bottom
             goal_center = enemy_goal_center
             goal_top = pygame.Vector2(0, GOAL_TOP + 0.1)
             goal_bottom = pygame.Vector2(0, GOAL_BOTTOM - 0.1)
@@ -456,7 +442,6 @@ class Player:
             if attack_vec.length_squared() > 1e-6:
                 planned_shot_direction = attack_vec.normalize()
                 target = ball.pos - planned_shot_direction * (PLAYER_RADIUS + BALL_RADIUS+0.1)
-                # vel = pos - t
                 bot_to_ball = ball.pos - self.pos
                 if bot_to_ball.length_squared() > 1e-12:
                     behind_alignment = bot_to_ball.normalize().dot(planned_shot_direction)
@@ -477,12 +462,12 @@ class Player:
         hack_speed = 1.05
         if direction.length() > 0.5:
             direction = direction.normalize()
-            self.vel += direction * self.acceleration * dt*hack_speed
+            self.vel += direction * self.acceleration * dt * hack_speed
 
+        kicked = False
         if should_kick:
             if diff.length() < PLAYER_RADIUS + BALL_RADIUS + KICK_RANGE:
-                self.kick(ball)
-
+                kicked = self.kick(ball)
         self.debug_info["state"] = state
         self.debug_info["target"] = target.copy()
         self.debug_info["intercept"] = bot_intercept.copy()
@@ -493,8 +478,10 @@ class Player:
         self.debug_info["enemy_time_to_ball"] = t_enemy
         self.debug_info["ball_distance"] = (ball.pos - self.pos).length()
         self.debug_info["path_clear"] = path_clear
+        return kicked
 
     def handle_input(self, keys, dt):
+        """Áp dụng input bàn phím vào vận tốc của cầu thủ."""
         direction = pygame.Vector2(0, 0)
 
         if keys[self.controls["up"]]:
@@ -511,6 +498,7 @@ class Player:
             self.vel += direction * self.acceleration * dt
 
     def update(self, other, dt, ball):
+        """Cập nhật vật lý cầu thủ, bộ đếm thời gian, kỹ năng và debug."""
         self.vel *= self.damping
 
         # Giới hạn tốc độ tối đa
@@ -571,6 +559,7 @@ class Player:
     #------------------------ COLLISIONS ------------------------
     # Xử lý va chạm giữa hai player
     def handle_player_collision(self, other):
+        """Xử lý va chạm vật lý giữa cầu thủ này và cầu thủ khác."""
         diff = other.pos - self.pos
         distance = diff.length()
         min_dist = PLAYER_RADIUS * 2
@@ -613,7 +602,7 @@ class Player:
             other.vel -= impulse_vector / other.mass
     # Xử lý va chạm với tường
     def handle_wall_collision(self):
-        # Tạo vector lưu phần khoảng cách bị dôi ra
+        """Giữ cầu thủ trong vùng chơi và trả về phần hiệu chỉnh vị trí."""
         correction = pygame.Vector2(0, 0)
 
         min_x = -GOAL_DEPTH
@@ -646,6 +635,7 @@ class Player:
         return correction # Trả về để dùng dồn lực cho thằng kia
     # Xử lý va chạm với bóng
     def handle_ball_collision(self, ball):
+        """Xử lý va chạm giữa cầu thủ này và bóng."""
         diff = ball.pos - self.pos
         distance = diff.length()
         min_dist = PLAYER_RADIUS + BALL_RADIUS
@@ -679,6 +669,7 @@ class Player:
         return False
 
     def kick(self, ball):
+        """Sút bóng nếu bóng trong tầm và cầu thủ được phép sút."""
         if self.can_kick == False:
             return
         if self.kick_timer > 0:
@@ -696,8 +687,11 @@ class Player:
             self.kick_timer = KICK_COOLDOWN
             self.just_kicked = True
             self.last_kick_direction = direction.copy()
+            return True
+        return False
     #------------------------ SKILL ------------------------
     def activate_skill(self,other):
+        """Kích hoạt kỹ năng nhân vật nếu kỹ năng không trong thời gian hồi chiêu."""
         if self.skill_cooldown > 0:
             return
         if self.character == "Kunigami":
@@ -710,7 +704,7 @@ class Player:
             self.skill_timer = 5.0
             self.skill_cooldown = 10.0
             other.vel *= 0.005  # giảm tốc độ đối thủ xuống cực thấp
-            other.can_kick = False  # đối thủ không thể đá bóng trong thời gian này
+            other.can_kick = False  # đối thủ không thể thay bóng trong thời gian này
         if self.character == "Chigiri":
             self.skill_active = True
             self.skill_timer = 10.0
@@ -728,10 +722,18 @@ class Player:
             self.skill_active = True
             self.skill_timer = 5.0
             self.skill_cooldown = 10.0
+        if self.character == "Itachi":
+            self.skill_active = True
+            self.skill_timer = 3.0
+            self.skill_cooldown = 15.0
+            self.time_rewind = True
+            self.rewind_timer = 3.0
     def information(self, character,color):
+        """Gán nhân vật đã chọn và màu hiển thị cho cầu thủ."""
         self.character = character
         self.color = color
     def draw(self, screen):
+        """Vẽ cầu thủ dưới dạng hình tròn trong tọa độ sân."""
         pygame.draw.circle(
             screen,
             self.color,
@@ -739,6 +741,7 @@ class Player:
             PLAYER_RADIUS
         )
     def reset(self,x,y,color,control):
+        """Đưa cầu thủ về spawn và xóa trạng thái di chuyển, sút, kỹ năng."""
         self.pos = pygame.Vector2(x, y)
         self.vel = pygame.Vector2(0, 0)
         self.spawn_x = x
@@ -747,4 +750,16 @@ class Player:
         self.controls = control
         self.just_kicked = False
         self.last_kick_direction = pygame.Vector2(0, 0)
+        self.ball_ok = True
+        self.can_kick = True
+        self.kicked = False
+        self.mass = PLAYER_MASS
+        self.acceleration = PLAYER_ACCELERATION
+        self.damping = PLAYER_DAMPING
+        self.max_speed = PLAYER_MAX_SPEED
+        self.skill_active = False
+        self.skill_timer = 0
+        self.skill_cooldown = 0
+        self.time_rewind = False
+        self.rewind_timer = 0
         self._reset_debug_info()

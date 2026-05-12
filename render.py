@@ -2,7 +2,8 @@ import pygame
 from config import *
 
 
-def draw_scene(screen, ball, ball_ok, player1, player2, score_red, score_blue, font, effects=None, debug_overlay=None):
+def draw_scene(screen, ball, ball_ok, player1, player2, score_red, score_blue, font, effects=None, debug_overlay=None, match_time_left=None):
+    """Vẽ toàn bộ trận đấu gồm sân, cầu thủ, bóng, điểm số, hiệu ứng và debug."""
 
     # =========================
     # BACKGROUND
@@ -142,6 +143,13 @@ def draw_scene(screen, ball, ball_ok, player1, player2, score_red, score_blue, f
         score_text,
         (WINDOW_WIDTH // 2 - score_text.get_width() // 2, 20)
     )
+    if match_time_left is not None:
+        seconds_left = max(0, int(match_time_left))
+        time_text = font.render(f"{seconds_left // 60:02d}:{seconds_left % 60:02d}", True, COLOR_SCORE)
+        screen.blit(
+            time_text,
+            (WINDOW_WIDTH // 2 - time_text.get_width() // 2, 58)
+        )
     player1.draw(screen)
     player2.draw(screen)
     if effects is not None:

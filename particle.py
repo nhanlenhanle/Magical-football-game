@@ -11,15 +11,19 @@ VectorGetter = Callable[[], pygame.Vector2]
 
 
 def _lerp(start: float, end: float, t: float) -> float:
+    """Nội suy tuyến tính giữa hai giá trị số."""
     return start + (end - start) * t
 
 
 def _smoothstep(t: float) -> float:
+    """Làm mượt giá trị chuẩn hóa để particle đổi kích thước mềm hơn."""
     return t * t * (3.0 - 2.0 * t)
 
 
 @dataclass
 class Particle:
+    """Particle tròn cơ bản có vận tốc, mờ dần, lực cản và tùy chọn bám mục tiêu."""
+
     pos: pygame.Vector2
     vel: pygame.Vector2
     lifetime: float
@@ -35,6 +39,7 @@ class Particle:
     age: float = 0.0
 
     def update(self, dt: float) -> bool:
+        """Cập nhật vật lý particle và trả về True nếu nó còn tồn tại."""
         self.age += dt
         if self.age >= self.lifetime:
             return False
@@ -57,20 +62,24 @@ class Particle:
         return True
 
     def current_size(self) -> float:
+        """Trả về kích thước particle tại tiến độ vòng đời hiện tại."""
         t = self.progress()
         end_size = self.end_size if self.end_size is not None else self.size
         return _lerp(self.size, end_size, _smoothstep(t))
 
     def current_alpha(self) -> int:
+        """Trả về độ trong suốt đã mờ dần theo tiến độ vòng đời."""
         fade = 1.0 - self.progress()
         return max(0, min(255, int(self.alpha * fade)))
 
     def progress(self) -> float:
+        """Trả về tiến độ vòng đời được giới hạn trong khoảng 0..1."""
         if self.lifetime <= 0:
             return 1.0
         return max(0.0, min(1.0, self.age / self.lifetime))
 
     def draw(self, screen: pygame.Surface, offset: pygame.Vector2) -> None:
+        """Vẽ particle dưới dạng hình tròn mờ trong tọa độ màn hình."""
         radius = max(1, int(self.current_size()))
         alpha = self.current_alpha()
         if alpha <= 0:
@@ -85,10 +94,13 @@ class Particle:
 
 @dataclass
 class CrescentParticle(Particle):
+    """Particle được vẽ dưới dạng hình lưỡi liềm."""
+
     cut_ratio: float = 0.72
     cut_shift: float = 0.45
 
     def draw(self, screen: pygame.Surface, offset: pygame.Vector2) -> None:
+        """Vẽ particle thành lưỡi liềm bằng cách cắt từ hình tròn đặc."""
         radius = max(2, int(self.current_size()))
         alpha = self.current_alpha()
         if alpha <= 0:
@@ -116,15 +128,19 @@ class CrescentParticle(Particle):
 
 @dataclass
 class SquareParticle(Particle):
+    """Particle được vẽ dưới dạng hình vuông xoay."""
+
     angle: float = 0.0
     spin: float = 0.0
 
     def update(self, dt: float) -> bool:
+        """Cập nhật vật lý cơ bản và xoay hình vuông."""
         alive = super().update(dt)
         self.angle += self.spin * dt
         return alive
 
     def draw(self, screen: pygame.Surface, offset: pygame.Vector2) -> None:
+        """Vẽ particle dưới dạng hình vuông xoay và mờ dần."""
         size = max(2, int(self.current_size() * 2))
         alpha = self.current_alpha()
         if alpha <= 0:
@@ -140,16 +156,22 @@ class SquareParticle(Particle):
 
 
 class ParticleSystem:
+    """Bộ chứa quản lý và cập nhật tất cả particle đang hoạt động."""
+
     def __init__(self) -> None:
+        """Tạo danh sách particle rỗng."""
         self.particles: list[Particle] = []
 
     def emit(self, particle: Particle) -> None:
+        """Thêm một particle vào hệ thống đang hoạt động."""
         self.particles.append(particle)
 
     def clear(self) -> None:
+        """Xóa toàn bộ particle đang hoạt động."""
         self.particles.clear()
 
     def update(self, dt: float) -> None:
+        """Cập nhật tất cả particle và loại bỏ particle đã hết hạn."""
         alive_particles = []
         for particle in self.particles:
             if particle.update(dt):
@@ -157,5 +179,6 @@ class ParticleSystem:
         self.particles = alive_particles
 
     def draw(self, screen: pygame.Surface, offset: pygame.Vector2) -> None:
+        """Vẽ tất cả particle đang hoạt động với cùng offset màn hình."""
         for particle in self.particles:
             particle.draw(screen, offset)
