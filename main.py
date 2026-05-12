@@ -1,6 +1,7 @@
 import pygame
 import sys
 import asyncio
+import config as _config_module
 from collections import deque
 from config import *
 from skill_replay import replay_buffer
@@ -9,6 +10,7 @@ from debug import DebugOverlay
 from effect import SkillEffectManager
 from render import draw_scene
 from player import Player
+from profile import PlayerProfile, UPGRADE_DEFS
 #------------------------ CONTROLS------------------------
 controls1 = {
     "up": pygame.K_w,
@@ -54,13 +56,19 @@ goal_log = []
 last_toucher = None
 _menu_logo = None
 _menu_logo_failed = False
+# ── Profile & Upgrade ──────────────────────────────────────────────────────
+profile = PlayerProfile()
+upgrade_tab = "physical"      # "physical" | "skill"
+last_match_reward = None      # dict set khi trận kết thúc
 
 # ========================= SOUND =========================
-SOUND_KICK_PATH = "assert/sound/kick.wav"
-SOUND_GOAL_PATH = "assert/sound/goal-cheer.wav"
+SOUND_KICK_PATH    = "assert/sound/kick.wav"
+SOUND_GOAL_PATH    = "assert/sound/goal-cheer.wav"
 SOUND_GENERAL_PATH = "assert/sound/general.mp3"
-_snd_kick = None
-_snd_goal = None
+SOUND_ITACHI_PATH  = "assert/sound/effect skill/Itachi Mangekyou Sharingan Sound Effect - YouTube.mp3"
+_snd_kick   = None
+_snd_goal   = None
+_snd_itachi = None
 _music_playing = False
 
 
@@ -86,11 +94,13 @@ def get_menu_logo():
 def _apply_volume():
     """Cập nhật âm lượng cho music và sfx riêng biệt dựa trên settings."""
     music_vol = settings["music_volume"] / 100.0
-    sfx_vol = settings["sfx_volume"] / 100.0
+    sfx_vol   = settings["sfx_volume"] / 100.0
     if _snd_kick:
         _snd_kick.set_volume(sfx_vol)
     if _snd_goal:
         _snd_goal.set_volume(sfx_vol)
+    if _snd_itachi:
+        _snd_itachi.set_volume(sfx_vol)
     pygame.mixer.music.set_volume(music_vol)
 
 
@@ -124,11 +134,22 @@ def _play_goal_sound():
     if _snd_goal:
         _snd_goal.play()
 
-
 def _stop_goal_sound():
     """Dừng âm thanh ăn mừng bàn thắng."""
     if _snd_goal:
         _snd_goal.stop()
+
+
+def _play_itachi_sound():
+    """Phát âm thanh Itachi Mangekyou Sharingan khi dùng skill."""
+    if _snd_itachi:
+        _snd_itachi.play()
+
+
+def _stop_itachi_sound():
+    """Dừng âm thanh Itachi khi rewind kết thúc."""
+    if _snd_itachi:
+        _snd_itachi.stop()
 
 
 def draw_button(screen, font, button_id, text, rect, base_color=(92, 134, 96), hover_color=(118, 165, 107), text_color=(245, 250, 238)):
@@ -428,19 +449,143 @@ def draw_settings(screen, font, waiting_for_key):
 
 
 def draw_upgrade(screen, font):
+    """Màn hình nâng cấp premium: profile bar + tabs + upgrade cards."""
     ui_buttons.clear()
-    screen.fill((73, 111, 82))
-    title = font.render("NANG CAP", True, (245, 250, 238))
-    screen.blit(title, (WINDOW_WIDTH // 2 - title.get_width() // 2, 80))
-    draw_center_text(
-        screen,
-        font,
-        ["Tinh nang nay dang duoc phat trien"],
-        210,
-        color=(245, 250, 238),
-    )
+
+    W, H = WINDOW_WIDTH, WINDOW_HEIGHT
+    screen.fill((16, 18, 26))
+
+    # ── Fonts ──────────────────────────────────────────────────────────────
+    lv_font   = pygame.font.SysFont("Arial", 30, bold=True)
+    pf_font   = pygame.font.SysFont("Arial", 20, bold=True)
+    sm_font   = pygame.font.SysFont("Arial", 17)
+    card_name = pygame.font.SysFont("Arial", 19, bold=True)
+    card_desc = pygame.font.SysFont("Arial", 15)
+    card_cost = pygame.font.SysFont("Arial", 16, bold=True)
+
+    # ── Profile bar ────────────────────────────────────────────────────────
+    bar_h = 64
+    pygame.draw.rect(screen, (24, 28, 42), pygame.Rect(0, 0, W, bar_h))
+    pygame.draw.line(screen, (50, 60, 88), (0, bar_h), (W, bar_h), 1)
+
+    # Level badge
+    lv_surf = lv_font.render(f"Lv.{profile.level}", True, (255, 215, 0))
+    screen.blit(lv_surf, (18, bar_h // 2 - lv_surf.get_height() // 2))
+
+    # XP bar
+    xp_bx, xp_by, xp_bw, xp_bh2 = 100, 16, 260, 12
+    xp_ratio = min(profile.xp / max(profile.xp_to_next(), 1), 1.0)
+    pygame.draw.rect(screen, (38, 42, 60), pygame.Rect(xp_bx, xp_by, xp_bw, xp_bh2), border_radius=6)
+    if xp_ratio > 0:
+        pygame.draw.rect(screen, (70, 150, 255),
+                         pygame.Rect(xp_bx, xp_by, int(xp_bw * xp_ratio), xp_bh2), border_radius=6)
+    xp_lbl = sm_font.render(f"XP  {profile.xp} / {profile.xp_to_next()}", True, (140, 170, 220))
+    screen.blit(xp_lbl, (xp_bx, xp_by + xp_bh2 + 4))
+
+    # Coins
+    coin_surf = pf_font.render(f"Coins: {profile.coins}", True, (255, 200, 50))
+    screen.blit(coin_surf, (400, bar_h // 2 - coin_surf.get_height() // 2))
+
+    # Title
+    title_surf = lv_font.render("NANG CAP", True, (200, 210, 255))
+    screen.blit(title_surf, (W - title_surf.get_width() - 18, bar_h // 2 - title_surf.get_height() // 2))
+
+    # ── Tab buttons ─────────────────────────────────────────────────────────
+    tab_y = bar_h + 8
+    tab_h2, tab_w = 36, 150
+    tabs = [("physical", "Physical"), ("skill", "Skill")]
+    tabs_total = len(tabs) * tab_w + (len(tabs) - 1) * 16
+    tab_sx = W // 2 - tabs_total // 2
+
+    for i, (tk, tlabel) in enumerate(tabs):
+        trect = pygame.Rect(tab_sx + i * (tab_w + 16), tab_y, tab_w, tab_h2)
+        active = upgrade_tab == tk
+        pygame.draw.rect(screen, (55, 100, 200) if active else (32, 36, 54), trect, border_radius=8)
+        if active:
+            pygame.draw.rect(screen, (100, 160, 255), trect, 2, border_radius=8)
+        tf = pygame.font.SysFont("Arial", 20, bold=active)
+        ts = tf.render(tlabel, True, (245, 250, 238))
+        screen.blit(ts, (trect.centerx - ts.get_width() // 2, trect.centery - ts.get_height() // 2))
+        ui_buttons[f"upgrade_tab_{tk}"] = trect
+
+    # ── Cards ────────────────────────────────────────────────────────────────
+    defs = UPGRADE_DEFS[upgrade_tab]
+    card_w, card_h2 = 420, 108
+    card_gap_x, card_gap_y = 18, 12
+    per_row = 2
+    total_cw = per_row * card_w + (per_row - 1) * card_gap_x
+    sx = (W - total_cw) // 2
+    sy = tab_y + tab_h2 + 14
+
+    for i, udef in enumerate(defs):
+        col = i % per_row
+        row = i // per_row
+        cx2 = sx + col * (card_w + card_gap_x)
+        cy2 = sy + row * (card_h2 + card_gap_y)
+        key = udef["key"]
+        lvl = profile.get_stat_level(key)
+        max_lvl = udef["max_level"]
+        cost = profile.get_upgrade_cost(key)
+        is_maxed = cost is None
+        can_buy = profile.can_upgrade(key)
+
+        # Card background & border
+        if is_maxed:
+            bg_col, bd_col = (22, 42, 28), (50, 180, 70)
+        elif can_buy:
+            bg_col, bd_col = (22, 28, 48), (70, 130, 255)
+        else:
+            bg_col, bd_col = (20, 22, 32), (44, 48, 68)
+
+        card_rect = pygame.Rect(cx2, cy2, card_w, card_h2)
+        pygame.draw.rect(screen, bg_col, card_rect, border_radius=10)
+        pygame.draw.rect(screen, bd_col, card_rect, 2, border_radius=10)
+
+        # Name & level
+        nm = card_name.render(udef["name"], True, (225, 230, 255))
+        lv_c = (60, 200, 80) if is_maxed else (255, 210, 0)
+        lv_s = card_name.render(f"Lv.{lvl}/{max_lvl}", True, lv_c)
+        screen.blit(nm, (cx2 + 12, cy2 + 9))
+        screen.blit(lv_s, (cx2 + card_w - lv_s.get_width() - 12, cy2 + 9))
+
+        # Progress bar (segmented)
+        pb_x, pb_y2, pb_w, pb_h3 = cx2 + 12, cy2 + 34, card_w - 24, 10
+        pygame.draw.rect(screen, (30, 34, 50), pygame.Rect(pb_x, pb_y2, pb_w, pb_h3), border_radius=5)
+        if lvl > 0:
+            fill_w = int(pb_w * lvl / max_lvl)
+            fill_c = (50, 200, 75) if is_maxed else (70, 145, 255)
+            pygame.draw.rect(screen, fill_c,
+                             pygame.Rect(pb_x, pb_y2, fill_w, pb_h3), border_radius=5)
+        for t in range(1, max_lvl):
+            tx3 = pb_x + int(pb_w * t / max_lvl)
+            pygame.draw.line(screen, (16, 18, 26), (tx3, pb_y2), (tx3, pb_y2 + pb_h3), 2)
+
+        # Description (current bonus)
+        bonus_pct = lvl * udef["bonus_per_level"] * 100
+        desc_str = udef["desc_template"].format(bonus_pct)
+        cap_pct  = udef["stat_cap"] * 100
+        full_desc = f"{desc_str}  |  cap: {cap_pct:.0f}%"
+        ds = card_desc.render(full_desc, True, (140, 160, 200))
+        screen.blit(ds, (cx2 + 12, cy2 + 52))
+
+        # Cost button or MAXED badge
+        if is_maxed:
+            ms = card_cost.render("✓ MAXED", True, (55, 210, 80))
+            screen.blit(ms, (cx2 + card_w - ms.get_width() - 12, cy2 + card_h2 - ms.get_height() - 8))
+        else:
+            btn_w2, btn_bh = 128, 26
+            btn_r = pygame.Rect(cx2 + card_w - btn_w2 - 10, cy2 + card_h2 - btn_bh - 8, btn_w2, btn_bh)
+            btn_c = (55, 115, 210) if can_buy else (38, 40, 58)
+            pygame.draw.rect(screen, btn_c, btn_r, border_radius=6)
+            cost_s = card_cost.render(f"{cost} coins", True,
+                                      (245, 250, 238) if can_buy else (90, 95, 120))
+            screen.blit(cost_s, (btn_r.centerx - cost_s.get_width() // 2,
+                                 btn_r.centery - cost_s.get_height() // 2))
+            ui_buttons[f"upgrade_{key}"] = btn_r
+
     draw_back_button(screen, font)
     pygame.display.flip()
+
 
 
 def _format_goal_time(seconds):
@@ -451,13 +596,14 @@ def _format_goal_time(seconds):
 
 
 def draw_result(screen, font, score_red, score_blue):
-    """Vẽ màn hình kết quả trận đấu với timeline ghi bàn."""
+    """Vẽ màn hình kết quả trận đấu với timeline ghi bàn và phần thưởng."""
     ui_buttons.clear()
     screen.fill((30, 30, 38))
 
-    big_font = pygame.font.SysFont("Arial", 64, bold=True)
-    sub_font = pygame.font.SysFont("Arial", 30)
-    small_font = pygame.font.SysFont("Arial", 22)
+    big_font   = pygame.font.SysFont("Arial", 60, bold=True)
+    sub_font   = pygame.font.SysFont("Arial", 28)
+    small_font = pygame.font.SysFont("Arial", 21)
+    rew_font   = pygame.font.SysFont("Arial", 19, bold=True)
 
     # Tiêu đề
     if score_red > score_blue:
@@ -471,62 +617,78 @@ def draw_result(screen, font, score_red, score_blue):
         result_color = (180, 180, 180)
 
     result_label = big_font.render(result_text, True, result_color)
-    screen.blit(result_label, (WINDOW_WIDTH // 2 - result_label.get_width() // 2, 30))
+    screen.blit(result_label, (WINDOW_WIDTH // 2 - result_label.get_width() // 2, 24))
 
     # Tỉ số
-    score_font = pygame.font.SysFont("Arial", 52, bold=True)
-    score_str = f"{score_red}  -  {score_blue}"
+    score_font  = pygame.font.SysFont("Arial", 50, bold=True)
+    score_str   = f"{score_red}  -  {score_blue}"
     score_label = score_font.render(score_str, True, (245, 250, 238))
-    screen.blit(score_label, (WINDOW_WIDTH // 2 - score_label.get_width() // 2, 105))
+    screen.blit(score_label, (WINDOW_WIDTH // 2 - score_label.get_width() // 2, 95))
 
     # Tên Player hai bên
-    cx = WINDOW_WIDTH // 2
+    cx       = WINDOW_WIDTH // 2
     p1_label = sub_font.render("Player 1", True, (200, 80, 80))
     p2_label = sub_font.render("Player 2", True, (80, 80, 200))
-    p1_col_x = cx - 180
-    p2_col_x = cx + 180
-    screen.blit(p1_label, (p1_col_x - p1_label.get_width() // 2, 170))
-    screen.blit(p2_label, (p2_col_x - p2_label.get_width() // 2, 170))
+    p1_col_x = cx - 175
+    p2_col_x = cx + 175
+    screen.blit(p1_label, (p1_col_x - p1_label.get_width() // 2, 158))
+    screen.blit(p2_label, (p2_col_x - p2_label.get_width() // 2, 158))
 
-    # Vẽ đường kẻ ngang
-    pygame.draw.line(screen, (80, 80, 90), (cx - 300, 205), (cx + 300, 205), 1)
+    pygame.draw.line(screen, (80, 80, 90), (cx - 300, 192), (cx + 300, 192), 1)
 
     # Timeline ghi bàn
     p1_goals = [g for g in goal_log if g["player"] == 1]
     p2_goals = [g for g in goal_log if g["player"] == 2]
-
-    row_y = 215
-    row_gap = 28
+    row_y, row_gap = 200, 26
     for i, g in enumerate(p1_goals):
-        time_str = _format_goal_time(g["time"])
         color = (180, 180, 180) if g["type"] == "G" else (220, 120, 120)
-        text = f"{time_str}'  {g['type']}"
-        lbl = small_font.render(text, True, color)
+        lbl   = small_font.render(f"{_format_goal_time(g['time'])}'  {g['type']}", True, color)
         screen.blit(lbl, (p1_col_x - lbl.get_width() // 2, row_y + i * row_gap))
-
     for i, g in enumerate(p2_goals):
-        time_str = _format_goal_time(g["time"])
         color = (180, 180, 180) if g["type"] == "G" else (220, 120, 120)
-        text = f"{time_str}'  {g['type']}"
-        lbl = small_font.render(text, True, color)
+        lbl   = small_font.render(f"{_format_goal_time(g['time'])}'  {g['type']}", True, color)
         screen.blit(lbl, (p2_col_x - lbl.get_width() // 2, row_y + i * row_gap))
 
-    # Vẽ đường dọc giữa 2 cột
-    max_rows = max(len(p1_goals), len(p2_goals), 1)
+    max_rows    = max(len(p1_goals), len(p2_goals), 1)
     line_bottom = row_y + max_rows * row_gap + 5
-    pygame.draw.line(screen, (60, 60, 70), (cx, 170), (cx, line_bottom), 1)
+    pygame.draw.line(screen, (60, 60, 70), (cx, 158), (cx, line_bottom), 1)
 
-    # Nút về menu
-    button_w = 280
-    button_h = 55
-    btn_y = max(line_bottom + 15, 370)
-    draw_button(
-        screen, font, "result_home", "Ve Menu",
-        pygame.Rect(WINDOW_WIDTH // 2 - button_w // 2, btn_y, button_w, button_h),
-        base_color=(92, 134, 96),
-        hover_color=(118, 165, 107),
-    )
+    # ── Reward panel ──────────────────────────────────────────────────────
+    panel_y = max(line_bottom + 10, 335)
+    if last_match_reward:
+        rw = last_match_reward
+        panel_w, panel_h = 380, 52
+        panel_x = cx - panel_w // 2
+        pygame.draw.rect(screen, (28, 32, 48), pygame.Rect(panel_x, panel_y, panel_w, panel_h), border_radius=10)
+        pygame.draw.rect(screen, (60, 90, 180), pygame.Rect(panel_x, panel_y, panel_w, panel_h), 2, border_radius=10)
+
+        xp_str   = f"+{rw['xp']} XP"
+        coin_str = f"+{rw['coins']} Coins"
+        lv_str   = "  ▲ LEVEL UP!" if rw.get("leveled_up") else f"  Lv.{profile.level}"
+        full_str = f"{xp_str}    {coin_str}{lv_str}"
+        rs = rew_font.render(full_str, True, (200, 230, 255))
+        screen.blit(rs, (cx - rs.get_width() // 2, panel_y + panel_h // 2 - rs.get_height() // 2))
+        panel_y += panel_h + 8
+
+    # Nút ve Menu + Nang Cap
+    btn_w_single = 240
+    btn_h        = 50
+    gap          = 20
+    total_btn_w  = btn_w_single * 2 + gap
+    btn_x_start  = cx - total_btn_w // 2
+    btn_y        = max(panel_y + 4, 390)
+
+    draw_button(screen, font, "result_home", "Ve Menu",
+                pygame.Rect(btn_x_start, btn_y, btn_w_single, btn_h),
+                base_color=(92, 134, 96), hover_color=(118, 165, 107))
+    draw_button(screen, font, "result_upgrade", "Nang Cap",
+                pygame.Rect(btn_x_start + btn_w_single + gap, btn_y, btn_w_single, btn_h),
+                base_color=(55, 90, 180), hover_color=(80, 130, 230))
     pygame.display.flip()
+
+
+
+
 
 
 def draw_character_select(screen, font, player_number):
@@ -571,14 +733,14 @@ def draw_character_select(screen, font, player_number):
     pygame.display.flip()
 async def main():
     """Chạy vòng lặp pygame gồm menu, gameplay, replay và rewind."""
-    global game_mode
+    global game_mode, upgrade_tab, last_match_reward
     game_state = "HOME"  # HOME / MENU / SETTINGS / UPGRADE / PLAY_BOT / PLAY_PVP / PLAYING
     waiting_for_key = None
     pygame.init()
     pygame.mixer.init()
 
     # Load sounds
-    global _snd_kick, _snd_goal, _music_playing
+    global _snd_kick, _snd_goal, _snd_itachi, _music_playing
     try:
         _snd_kick = pygame.mixer.Sound(SOUND_KICK_PATH)
     except (pygame.error, FileNotFoundError):
@@ -587,6 +749,10 @@ async def main():
         _snd_goal = pygame.mixer.Sound(SOUND_GOAL_PATH)
     except (pygame.error, FileNotFoundError):
         _snd_goal = None
+    try:
+        _snd_itachi = pygame.mixer.Sound(SOUND_ITACHI_PATH)
+    except (pygame.error, FileNotFoundError):
+        _snd_itachi = None
 
     _apply_volume()
     _start_general_music()
@@ -692,6 +858,16 @@ async def main():
                     last_toucher = None
                     _start_general_music()
                     continue
+                if clicked == "result_upgrade":
+                    game_state = "UPGRADE"
+                    continue
+                if clicked and clicked.startswith("upgrade_tab_"):
+                    upgrade_tab = clicked.replace("upgrade_tab_", "", 1)
+                    continue
+                if clicked and clicked.startswith("upgrade_") and not clicked.startswith("upgrade_tab_"):
+                    key = clicked.replace("upgrade_", "", 1)
+                    profile.purchase_upgrade(key)
+                    continue
                 if clicked == "mode_bot":
                     reset_match(ball, player1, player2, effects)
                     score_red = 0
@@ -744,6 +920,7 @@ async def main():
                     else:
                         choose_character(player2, player_number, character_index)
                         game_state = "PLAYING"
+                        profile.apply_to_player(player1, _config_module)
                         _stop_general_music()
                     continue
             if event.type == pygame.KEYDOWN:
@@ -882,6 +1059,15 @@ async def main():
             match_time_left -= dt
             if match_time_left <= 0 or score_red >= settings["max_goals"] or score_blue >= settings["max_goals"]:
                 game_state = "RESULT"
+                # Trao thưởng dựa trên kết quả
+                if score_red > score_blue:
+                    res = "win"
+                elif score_blue > score_red:
+                    res = "loss"
+                else:
+                    res = "draw"
+                last_match_reward = profile.award_match(res)
+                
                 _start_general_music()
                 continue
         if game_mode != "REPLAY" and not rewind_active and rewind_freeze_timer <= 0:
@@ -898,6 +1084,7 @@ async def main():
                     rewind_frames = [game_snapshot(ball, player1, player2, effects, ball_ok)]
                 rewind_index = len(rewind_frames) - 1
                 rewind_active = True
+                _play_itachi_sound()
 
         if rewind_active:
             if rewind_index >= 0:
@@ -908,6 +1095,7 @@ async def main():
                 rewind_index -= 1
             else:
                 rewind_active = False
+                _stop_itachi_sound()
                 finish_itachi_rewind(rewind_caster)
                 effects.start_itachi_converge(rewind_caster.pos)
                 rewind_freeze_timer = ITACHI_FREEZE_SECONDS

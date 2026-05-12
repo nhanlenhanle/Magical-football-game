@@ -29,6 +29,7 @@ class Player:
         self.skill_active = False
         self.skill_timer = 0
         self.skill_cooldown = 0
+
         
         self.time_rewind = False
         self.rewind_timer = 0
@@ -36,6 +37,12 @@ class Player:
         self.is_bot = False
         self._reset_debug_info()
         self.cache_target_clear=pygame.Vector2(0,0)
+
+        # Upgrade bonuses (set by profile.apply_to_player)
+        self.kick_power_bonus = 0.0
+        self.cooldown_reduction_bonus = 0.0
+        self.skill_duration_bonus = 0.0
+        self.skill_effectiveness_bonus = 0.0
         
     def _reset_debug_info(self):
         """Đặt lại thông tin debug từng frame dùng cho debug overlay."""
@@ -682,13 +689,14 @@ class Player:
         if distance < min_dist and distance != 0:
 
             direction = diff.normalize()
-            ball.vel += direction * KICK_FORCE
+            force = KICK_FORCE * (1 + self.kick_power_bonus)
+            ball.vel += direction * force
+
             self.kicked=True
             self.kick_timer = KICK_COOLDOWN
             self.just_kicked = True
             self.last_kick_direction = direction.copy()
             return True
-        return False
     #------------------------ SKILL ------------------------
     def activate_skill(self,other):
         """Kích hoạt kỹ năng nhân vật nếu kỹ năng không trong thời gian hồi chiêu."""
