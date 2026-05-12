@@ -8,6 +8,7 @@ PROFILE_PATH = "player_profile.json"
 
 # XP cần để lên level n → n+1
 def xp_for_next_level(level: int) -> int:
+    """Tính lượng XP cần thiết để tăng từ level hiện tại lên level kế tiếp."""
     return 100 * level   # lv1→2: 100, lv2→3: 200, …
 
 
@@ -98,15 +99,16 @@ class PlayerProfile:
 
     def __init__(self):
         self.data = {
-            "level": 1000,
-            "xp": 1000000000000000,
-            "coins": 10000000000000000,
+            "level": 1,
+            "xp": 0,
+            "coins": 0,
             "stats": dict(_DEFAULT_STATS),
         }
         self.load()
 
     # ──────────── persistence ─────────────────────────────────────────────
     def load(self):
+        """Tải dữ liệu profile từ file JSON nếu tồn tại."""
         if os.path.exists(PROFILE_PATH):
             try:
                 with open(PROFILE_PATH, "r", encoding="utf-8") as f:
@@ -122,6 +124,7 @@ class PlayerProfile:
                 pass
 
     def save(self):
+        """Lưu dữ liệu profile hiện tại vào file JSON."""
         try:
             with open(PROFILE_PATH, "w", encoding="utf-8") as f:
                 json.dump(self.data, f, indent=2, ensure_ascii=False)
@@ -131,21 +134,26 @@ class PlayerProfile:
     # ──────────── properties tiện lợi ────────────────────────────────────
     @property
     def level(self) -> int:
+        """Trả về cấp độ hiện tại của người chơi."""
         return self.data["level"]
 
     @property
     def xp(self) -> int:
+        """Trả về lượng XP hiện tại của người chơi."""
         return self.data["xp"]
 
     @property
     def coins(self) -> int:
+        """Trả về số lượng coins hiện tại của người chơi."""
         return self.data["coins"]
 
     @property
     def stats(self) -> dict:
+        """Trả về dict chứa cấp độ của các chỉ số nâng cấp."""
         return self.data["stats"]
 
     def xp_to_next(self) -> int:
+        """Trả về tổng XP cần có để đạt tới level tiếp theo."""
         return xp_for_next_level(self.level)
 
     # ──────────── XP / level ──────────────────────────────────────────────
@@ -160,10 +168,12 @@ class PlayerProfile:
         return leveled
 
     def add_coins(self, amount: int):
+        """Thêm một lượng coins cho người chơi."""
         self.data["coins"] += amount
 
     # ──────────── upgrade helpers ─────────────────────────────────────────
     def get_stat_level(self, key: str) -> int:
+        """Lấy cấp độ hiện tại của một chỉ số cụ thể."""
         return self.data["stats"].get(key, 0)
 
     def get_stat_bonus(self, key: str) -> float:
@@ -175,6 +185,7 @@ class PlayerProfile:
         return min(lvl * udef["bonus_per_level"], udef["stat_cap"])
 
     def get_max_level(self, key: str) -> int:
+        """Lấy cấp độ tối đa có thể đạt được của một chỉ số."""
         udef = _DEFS_BY_KEY.get(key)
         return udef["max_level"] if udef else 0
 
@@ -189,6 +200,7 @@ class PlayerProfile:
         return udef["costs"][lvl]
 
     def can_upgrade(self, key: str) -> bool:
+        """Kiểm tra xem người chơi có đủ coins để nâng cấp chỉ số này không."""
         cost = self.get_upgrade_cost(key)
         return cost is not None and self.coins >= cost
 

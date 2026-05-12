@@ -20,15 +20,18 @@ class Ball:
     #     if keys[pygame.K_RIGHT]:
     #         self.vel.x += FORCE * dt
 
-    def update(self, player1, player2, dt):
-        """Cập nhật chuyển động của bóng trong một frame."""
+    def update(self, *args):
+        """Cap nhat chuyen dong cua bong trong mot frame."""
+        if len(args) >= 3 and isinstance(args[-1], (int, float)):
+            *players, dt = args
+        else:
+            players, dt = args[0], args[1]
 
-        # Giới hạn tốc độ tối đa
         can_move = True
-        if player1.skill_active and player1.skill_timer > 0 and player1.character == "Isagi":
-            can_move = False
-        if player2.skill_active and player2.skill_timer > 0 and player2.character == "Isagi":
-            can_move = False
+        for player in players:
+            if player.skill_active and player.skill_timer > 0 and player.character == "Isagi":
+                can_move = False
+                break
         if can_move:
             self.vel *= BALL_DAMPING
         if self.vel.length() > BALL_MAX_SPEED:

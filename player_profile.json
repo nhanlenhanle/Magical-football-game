@@ -1,12 +1,12 @@
 {
-  "level": 4472136,
-  "xp": 253432230,
-  "coins": 9999999999998415,
+  "level": 11,
+  "xp": 0,
+  "coins": 0,
   "stats": {
     "kick_power": 0,
     "speed": 0,
     "mass": 0,
-    "acceleration": 4,
+    "acceleration": 0,
     "cooldown_reduction": 0,
     "skill_duration": 0,
     "skill_effectiveness": 0

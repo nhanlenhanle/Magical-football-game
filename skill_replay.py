@@ -7,9 +7,9 @@ class ReplayBuffer:
         self.max_frames = 300 * 2
         self.frames = deque()
 
-    def save(self, ball, p1, p2, effects=None):
+    def save(self, ball, p1, p2, effects=None, p3=None):
         """Lưu một frame gồm trạng thái bóng, cầu thủ và hiệu ứng nếu có."""
-        self.frames.append({
+        frame = {
             "ball_pos": ball.pos.copy(),
             "ball_vel": ball.vel.copy(),
             "p1_pos": p1.pos.copy(),
@@ -17,7 +17,11 @@ class ReplayBuffer:
             "p2_pos": p2.pos.copy(),
             "p2_vel": p2.vel.copy(),
             "effects": effects.get_state() if effects is not None else None,
-        })
+        }
+        if p3 is not None:
+            frame["p3_pos"] = p3.pos.copy()
+            frame["p3_vel"] = p3.vel.copy()
+        self.frames.append(frame)
         if len(self.frames) > self.max_frames:
             self.frames.popleft()
 
