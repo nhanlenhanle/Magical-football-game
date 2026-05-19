@@ -14,7 +14,7 @@ class Player:
         self.spawn_x = x
         self.color = color
         self.controls = control
-
+        self.kick_force = KICK_FORCE
         self.kicked = False
 
         self.ball_ok=True
@@ -269,7 +269,7 @@ class Player:
         if distance < min_dist and distance != 0:
 
             direction = diff.normalize()
-            force = KICK_FORCE * (1 + self.kick_power_bonus)
+            force = self.kick_force * (1 + self.kick_power_bonus)
             ball.vel += direction * force
 
             self.kicked=True

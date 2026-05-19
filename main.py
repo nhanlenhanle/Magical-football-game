@@ -198,7 +198,7 @@ def restore_player_state(player, state):
     player.rewind_timer = state["rewind_timer"]
 
 
-def game_snapshot(ball, player1, player2, effects, ball_ok, player3=None):
+def game_snapshot(ball, player1, player2, effects, ball_ok, score_red, score_blue, match_time_left, player3=None):
     """Chụp toàn bộ trạng thái trận đấu cho kỹ năng quay ngược của Itachi."""
     snapshot = {
         "ball_pos": ball.pos.copy(),
@@ -207,6 +207,11 @@ def game_snapshot(ball, player1, player2, effects, ball_ok, player3=None):
         "p2": player_state(player2),
         "effects": effects.get_state(),
         "ball_ok": ball_ok,
+        "score_red": score_red,
+        "score_blue": score_blue,
+        "match_time_left": match_time_left,
+        "goal_log": [entry.copy() for entry in goal_log],
+        "last_toucher": last_toucher,
     }
     if player3 is not None:
         snapshot["p3"] = player_state(player3)
@@ -215,6 +220,8 @@ def game_snapshot(ball, player1, player2, effects, ball_ok, player3=None):
 
 def restore_game_snapshot(snapshot, ball, player1, player2, effects, player3=None):
     """Khôi phục bóng, cầu thủ, hiệu ứng và trạng thái hiển thị bóng từ snapshot."""
+    global last_toucher
+
     ball.pos = snapshot["ball_pos"].copy()
     ball.vel = snapshot["ball_vel"].copy()
     restore_player_state(player1, snapshot["p1"])
@@ -222,7 +229,14 @@ def restore_game_snapshot(snapshot, ball, player1, player2, effects, player3=Non
     if player3 is not None and "p3" in snapshot:
         restore_player_state(player3, snapshot["p3"])
     effects.set_state(snapshot["effects"])
-    return snapshot["ball_ok"]
+    goal_log[:] = [entry.copy() for entry in snapshot.get("goal_log", [])]
+    last_toucher = snapshot.get("last_toucher")
+    return (
+        snapshot["ball_ok"],
+        snapshot.get("score_red", 0),
+        snapshot.get("score_blue", 0),
+        snapshot.get("match_time_left", 0),
+    )
 
 
 def finish_itachi_rewind(caster):
@@ -293,7 +307,7 @@ def update_game(ball, player1, player2, dt, score_red, score_blue, match_time_le
 #------------------------ Vẽ giao diện mở đầu------------------------
 async def main():
     """Chạy vòng lặp pygame gồm menu, gameplay, replay và rewind."""
-    global game_mode, upgrade_tab, last_match_reward
+    global game_mode, upgrade_tab, last_match_reward, last_toucher
     game_state = "HOME"  # HOME / MENU / SETTINGS / UPGRADE / PLAY_BOT / PLAY_PVP / PLAYING
     waiting_for_key = None
     pygame.init()
@@ -685,14 +699,20 @@ async def main():
             if rewind_caster is not None:
                 rewind_frames = list(rewind_history)
                 if not rewind_frames:
-                    rewind_frames = [game_snapshot(ball, player1, player2, effects, ball_ok, player3 if active_extra_players else None)]
+                    rewind_frames = [
+                        game_snapshot(
+                            ball, player1, player2, effects, ball_ok,
+                            score_red, score_blue, match_time_left,
+                            player3 if active_extra_players else None
+                        )
+                    ]
                 rewind_index = len(rewind_frames) - 1
                 rewind_active = True
                 _play_itachi_sound()
 
         if rewind_active:
             if rewind_index >= 0:
-                ball_ok = restore_game_snapshot(
+                ball_ok, score_red, score_blue, match_time_left = restore_game_snapshot(
                     rewind_frames[rewind_index], ball, player1, player2, effects, player3 if active_extra_players else None
                 )
                 effects.set_itachi_overlay(True, dt)
@@ -710,7 +730,13 @@ async def main():
             if rewind_freeze_timer <= 0:
                 rewind_caster = None
                 rewind_frames = []
-                rewind_history.append(game_snapshot(ball, player1, player2, effects, ball_ok, player3 if active_extra_players else None))
+                rewind_history.append(
+                    game_snapshot(
+                        ball, player1, player2, effects, ball_ok,
+                        score_red, score_blue, match_time_left,
+                        player3 if active_extra_players else None
+                    )
+                )
         elif game_mode == "REPLAY":
             if not replay_playing:
                 replay_frames = replay_buffer.get_frames()
@@ -752,7 +778,13 @@ async def main():
             )
             effects.update(dt, ball, player1, player2, *active_extra_players)
             replay_buffer.save(ball, player1, player2, effects, player3 if active_extra_players else None)
-            rewind_history.append(game_snapshot(ball, player1, player2, effects, ball_ok, player3 if active_extra_players else None))
+            rewind_history.append(
+                game_snapshot(
+                    ball, player1, player2, effects, ball_ok,
+                    score_red, score_blue, match_time_left,
+                    player3 if active_extra_players else None
+                )
+            )
         # RENDER
         draw_scene(screen, ball, ball_ok, player1, player2, score_red, score_blue, font, effects, debug_overlay, match_time_left, active_extra_players)
 

@@ -1,4 +1,4 @@
-import pygame
+﻿import pygame
 from config import *
 
 class NormalBot:
@@ -70,7 +70,7 @@ class NormalBot:
     # def ball_fly_goal(ball, dt, goal_x=FIELD_WIDTH):
     #     max_t = 3.0
     #     sim_dt = max(1 / 180, min(dt, 1 / 60))
-    #     pos = ball.pos.copy()
+    #     pos = ball.pos.copy().copy()
     #     vel = ball.vel.copy()
     #     time = 0.0
     #     last_pos = pos.copy()
@@ -156,7 +156,6 @@ class NormalBot:
             v_parallel = 0
             v_perp = 0
 
-        # ===== x? lý (d?i hu?ng) =====
         t_perp = v_perp / a
 
         if v_parallel < 0:
@@ -169,7 +168,7 @@ class NormalBot:
         dist = max(dist - s_stop, 0)
         v0 = max(v_parallel, 0)
 
-        # ===== tang t?c t?i max =====
+   
         t_acc = max((v_max - v0) / a, 0)
         s_acc = v0 * t_acc + 0.5 * a * t_acc**2
 
@@ -187,7 +186,7 @@ class NormalBot:
         max_t = 2.0
         sim_dt = max(1 / 180, min(dt, 1 / 60))
 
-        pos = ball.pos.copy()
+        pos = ball.pos.copy().copy()
         vel = ball.vel.copy()
         time = 0.0
 
@@ -213,13 +212,12 @@ class NormalBot:
                 best_time = time
 
         return {"pos": best_pos, "vel": best_vel, "time": best_time}
-    #Hàm dua ra v? trí v?i th?i gian ng?n nh?t mà bot có th? t?i
+
     @staticmethod
     def find_intercept(player, ball, dt):
         """Trả về riêng vị trí dự đoán để cầu thủ chạm bóng."""
         return AttackBot.find_intercept_info(player, ball, dt)["pos"]
-    #Hàm phòng th?
-    #Phòng th? b?ng cách ch?y theo tia t? player.pos d?n di?m gi?a c?a gôn bot
+
     def jockey_position(self, ball, opponent):
         """Chọn vị trí phòng thủ giữa đối thủ và gôn của cầu thủ này."""
         my_goal = pygame.Vector2(FIELD_WIDTH, FIELD_HEIGHT // 2)
@@ -231,10 +229,10 @@ class NormalBot:
             return my_goal
             
         dir_to_ball = goal_to_ball_vec.normalize()
-        ball_control_dist = 0 # (ball.pos - opponent.pos).length()
+        ball_control_dist = 0 # (ball.pos.copy() - opponent.pos).length()
 
         if ball_control_dist > PLAYER_RADIUS + BALL_RADIUS + 30 or dist_to_goal < 180:
-            return ball.pos  # Lao th?ng vào bóng
+            return ball.pos.copy() 
 
         dynamic_buffer = min(100, dist_to_goal * 0.3) 
         
@@ -243,7 +241,7 @@ class NormalBot:
         return target
     def find_best_clear(self,ball,bot_intercept):
         """Chọn mục tiêu phá bóng an toàn và dễ tiếp cận hơn cho bot."""
-        dir = self.pos - ball.pos
+        dir = self.pos - ball.pos.copy()
         target_top = pygame.Vector2(FIELD_WIDTH-5,5)
         target_bottom = pygame.Vector2(FIELD_WIDTH-5,FIELD_HEIGHT-5)
         self.cache_target_clear=pygame.Vector2(0,0)
@@ -256,10 +254,10 @@ class NormalBot:
     def is_player_ball_line_on_goal(self, ball):
         """Kiểm tra cầu thủ có thể sút bóng về phía gôn trái hay không."""
         A = self.pos
-        dir = ball.pos - self.pos
+        dir = ball.pos.copy() - self.pos
         if dir.length_squared() < 1e-6:
             return False
-        shot_dir = (ball.pos - self.pos).normalize()
+        shot_dir = (ball.pos.copy() - self.pos).normalize()
         final_vel = ball.vel + shot_dir * KICK_FORCE
         goal_x = 0
         if final_vel.x >= 0:
@@ -276,10 +274,10 @@ class NormalBot:
     def is_not_player_ball_line_on_goal(self, ball):
         """Kiểm tra cầu thủ có thể phá bóng khỏi vùng gôn phải hay không."""
         A = self.pos
-        dir = ball.pos - self.pos
+        dir = ball.pos.copy() - self.pos
         if dir.length_squared() < 1e-6:
             return False
-        shot_dir = (ball.pos - self.pos).normalize()
+        shot_dir = (ball.pos.copy() - self.pos).normalize()
         final_vel = ball.vel + shot_dir * KICK_FORCE
         goal_x = FIELD_WIDTH
         if final_vel.x <= 0:
@@ -331,7 +329,7 @@ class NormalBot:
         return candidate_b
     def NEED_SPAM(self, opponent, ball):
         """Trả về True nếu bot nên áp sát và spam tranh bóng ở cự ly gần."""
-        if (ball.pos-self.pos).normalize().dot((ball.pos-opponent.pos).normalize())<0 and (ball.pos-self.pos).normalize().x<0:
+        if (ball.pos.copy()-self.pos).normalize().dot((ball.pos.copy()-opponent.pos).normalize())<0 and (ball.pos.copy()-self.pos).normalize().x<0:
            return((self.pos-opponent.pos).length() - (PLAYER_RADIUS*2 + BALL_RADIUS + 150) <= 0)
         return False
     def bot_update(self, opponent, ball, dt):
@@ -353,13 +351,13 @@ class NormalBot:
         is_pressed = False
         planned_shot_direction = pygame.Vector2(0, 0)
         path_clear = None
-        diff = ball.pos - self.pos
+        diff = ball.pos.copy() - self.pos
 
-        if (ball.pos-self.pos).normalize().dot((ball.pos-opponent.pos).normalize())<0 and (ball.pos-self.pos).normalize().x<0:
+        if (ball.pos.copy()-self.pos).normalize().dot((ball.pos.copy()-opponent.pos).normalize())<0 and (ball.pos.copy()-self.pos).normalize().x<0:
             ok = 0.3
         else:
             ok = -0.15
-        check_ok = (self.pos-ball.pos).normalize().dot((self.pos-opponent.pos).normalize())<0 and (ball.pos-self.pos).normalize().x>0
+        check_ok = (self.pos-ball.pos.copy()).normalize().dot((self.pos-opponent.pos).normalize())<0 and (ball.pos.copy()-self.pos).normalize().x>0
         check_ok = check_ok and (t_bot > t_enemy + 0.15)
         if t_bot > t_enemy + ok and (not check_ok):
             state = "DEFEND"
@@ -372,12 +370,12 @@ class NormalBot:
         else:
             state = "ATTACK"
         if state == "CLEAR":
-            vec_excepted = self.find_best_clear(ball,bot_intercept) - ball.pos
+            vec_excepted = self.find_best_clear(ball,bot_intercept) - ball.pos.copy()
             vec = vec_excepted - ball.vel
             if vec.length_squared() > 1e-6:
                 planned_shot_direction = vec.normalize()
-                bot_to_ball = ball.pos - self.pos
-                target = ball.pos - planned_shot_direction * (PLAYER_RADIUS + BALL_RADIUS+0.1)
+                bot_to_ball = ball.pos.copy() - self.pos
+                target = ball.pos.copy() - planned_shot_direction * (PLAYER_RADIUS + BALL_RADIUS+0.1)
                 if bot_to_ball.length_squared() > 1e-6:
                     behind_alignment = bot_to_ball.normalize().dot(planned_shot_direction)
                 else:
@@ -386,9 +384,9 @@ class NormalBot:
                     should_kick = True
                 else:
                     should_kick = False
-                    target = AttackBot.orbit_attack_target(self.pos, ball.pos, target)
+                    target = AttackBot.orbit_attack_target(self.pos, ball.pos.copy(), target)
             else:
-                target = ball.pos
+                target = ball.pos.copy()
                 should_kick = False
         elif state == "DEFEND":
             self.cache_target_clear=pygame.Vector2(0,0)
@@ -399,14 +397,14 @@ class NormalBot:
             goal_top = pygame.Vector2(0, GOAL_TOP + 0.1)
             goal_bottom = pygame.Vector2(0, GOAL_BOTTOM - 0.1)
             
-            best_goal_target = AttackBot.find_best_goal_target(ball.pos, goal_center, goal_top, goal_bottom)
-            attack_vec_excepted = best_goal_target - ball.pos
+            best_goal_target = AttackBot.find_best_goal_target(ball.pos.copy(), goal_center, goal_top, goal_bottom)
+            attack_vec_excepted = best_goal_target - ball.pos.copy()
             attack_vec = attack_vec_excepted - ball.vel
-            check_it = self.is_not_player_ball_line_on_goal(ball) and ball.pos.x>=FIELD_WIDTH-200
+            check_it = self.is_not_player_ball_line_on_goal(ball) and ball.pos.copy().x>=FIELD_WIDTH-200
             if attack_vec.length_squared() > 1e-6:
                 planned_shot_direction = attack_vec.normalize()
-                target = ball.pos - planned_shot_direction * (PLAYER_RADIUS + BALL_RADIUS+0.1)
-                bot_to_ball = ball.pos - self.pos
+                target = ball.pos.copy() - planned_shot_direction * (PLAYER_RADIUS + BALL_RADIUS+0.1)
+                bot_to_ball = ball.pos.copy() - self.pos
                 if bot_to_ball.length_squared() > 1e-12:
                     behind_alignment = bot_to_ball.normalize().dot(planned_shot_direction)
                 else:
@@ -415,13 +413,13 @@ class NormalBot:
                     should_kick = True
                 else:
                     should_kick = False
-                    target = AttackBot.orbit_attack_target(self.pos, ball.pos, target)
+                    target = AttackBot.orbit_attack_target(self.pos, ball.pos.copy(), target)
             else:
-                target = ball.pos
+                target = ball.pos.copy()
                 should_kick = False
         elif state == "SPAM":
             should_kick = True
-            target = ball.pos
+            target = ball.pos.copy()
         direction = target - self.pos
         hack_speed = 1.05
         if direction.length() > 0.5:
@@ -440,7 +438,7 @@ class NormalBot:
         self.debug_info["is_pressed"] = is_pressed
         self.debug_info["time_to_ball"] = t_bot
         self.debug_info["enemy_time_to_ball"] = t_enemy
-        self.debug_info["ball_distance"] = (ball.pos - self.pos).length()
+        self.debug_info["ball_distance"] = (ball.pos.copy() - self.pos).length()
         self.debug_info["path_clear"] = path_clear
         return kicked
 
@@ -468,7 +466,6 @@ class AttackBot:
             object.__setattr__(self, name, value)
         else:
             setattr(self.player, name, value)
-
     @staticmethod
     def simulate_ball_step(pos, vel, dt):
         """Mô phỏng một bước vật lý bóng đơn giản để AI dự đoán."""
@@ -540,7 +537,7 @@ class AttackBot:
             v_parallel = 0
             v_perp = 0
 
-        # ===== x? lý (d?i hu?ng) =====
+       
         t_perp = v_perp / a
 
         if v_parallel < 0:
@@ -553,7 +550,7 @@ class AttackBot:
         dist = max(dist - s_stop, 0)
         v0 = max(v_parallel, 0)
 
-        # ===== tang t?c t?i max =====
+       
         t_acc = max((v_max - v0) / a, 0)
         s_acc = v0 * t_acc + 0.5 * a * t_acc**2
 
@@ -571,7 +568,7 @@ class AttackBot:
         max_t = 2.0
         sim_dt = max(1 / 180, min(dt, 1 / 60))
 
-        pos = ball.pos.copy()
+        pos = ball.pos.copy().copy()
         vel = ball.vel.copy()
         time = 0.0
 
@@ -597,13 +594,12 @@ class AttackBot:
                 best_time = time
 
         return {"pos": best_pos, "vel": best_vel, "time": best_time}
-    #Hàm dua ra v? trí v?i th?i gian ng?n nh?t mà bot có th? t?i
+    
     @staticmethod
     def find_intercept(player, ball, dt):
         """Trả về riêng vị trí dự đoán để cầu thủ chạm bóng."""
         return AttackBot.find_intercept_info(player, ball, dt)["pos"]
-    #Hàm phòng th?
-    #Phòng th? b?ng cách ch?y theo tia t? player.pos d?n di?m gi?a c?a gôn bot
+    
     def jockey_position(self, ball, opponent):
         """Chọn vị trí phòng thủ giữa đối thủ và gôn của cầu thủ này."""
         my_goal = pygame.Vector2(FIELD_WIDTH, FIELD_HEIGHT // 2)
@@ -615,10 +611,10 @@ class AttackBot:
             return my_goal
             
         dir_to_ball = goal_to_ball_vec.normalize()
-        ball_control_dist = 0 # (ball.pos - opponent.pos).length()
+        ball_control_dist = 0 # (ball.pos.copy() - opponent.pos).length()
 
         if ball_control_dist > PLAYER_RADIUS + BALL_RADIUS + 30 or dist_to_goal < 180:
-            return ball.pos  # Lao th?ng vào bóng
+            return ball.pos.copy()  # Lao th?ng vào bóng
 
         dynamic_buffer = min(100, dist_to_goal * 0.3) 
         
@@ -627,7 +623,7 @@ class AttackBot:
         return target
     def find_best_clear(self,ball,bot_intercept):
         """Chọn mục tiêu phá bóng an toàn và dễ tiếp cận hơn cho bot."""
-        dir = self.pos - ball.pos
+        dir = self.pos - ball.pos.copy()
         target_top = pygame.Vector2(FIELD_WIDTH-5,5)
         target_bottom = pygame.Vector2(FIELD_WIDTH-5,FIELD_HEIGHT-5)
         self.cache_target_clear=pygame.Vector2(0,0)
@@ -640,10 +636,10 @@ class AttackBot:
     def is_player_ball_line_on_goal(self, ball):
         """Kiểm tra cầu thủ có thể sút bóng về phía gôn trái hay không."""
         A = self.pos
-        dir = ball.pos - self.pos
+        dir = ball.pos.copy() - self.pos
         if dir.length_squared() < 1e-6:
             return False
-        shot_dir = (ball.pos - self.pos).normalize()
+        shot_dir = (ball.pos.copy() - self.pos).normalize()
         final_vel = ball.vel + shot_dir * KICK_FORCE
         goal_x = 0
         if final_vel.x >= 0:
@@ -660,10 +656,10 @@ class AttackBot:
     def is_not_player_ball_line_on_goal(self, ball):
         """Kiểm tra cầu thủ có thể phá bóng khỏi vùng gôn phải hay không."""
         A = self.pos
-        dir = ball.pos - self.pos
+        dir = ball.pos.copy() - self.pos
         if dir.length_squared() < 1e-6:
             return False
-        shot_dir = (ball.pos - self.pos).normalize()
+        shot_dir = (ball.pos.copy() - self.pos).normalize()
         final_vel = ball.vel + shot_dir * KICK_FORCE
         goal_x = FIELD_WIDTH
         if final_vel.x <= 0:
@@ -715,7 +711,7 @@ class AttackBot:
         return candidate_b
     def NEED_SPAM(self, opponent, ball):
         """Trả về True nếu bot nên áp sát và spam tranh bóng ở cự ly gần."""
-        if (ball.pos-self.pos).normalize().dot((ball.pos-opponent.pos).normalize())<0 and (ball.pos-self.pos).normalize().x<0:
+        if (ball.pos.copy()-self.pos).normalize().dot((ball.pos.copy()-opponent.pos).normalize())<0 and (ball.pos.copy()-self.pos).normalize().x<0:
            return((self.pos-opponent.pos).length() - (PLAYER_RADIUS*2 + BALL_RADIUS + 150) <= 0)
         return False
     def bot_update(self, opponent, ball, dt):
@@ -737,13 +733,13 @@ class AttackBot:
         is_pressed = False
         planned_shot_direction = pygame.Vector2(0, 0)
         path_clear = None
-        diff = ball.pos - self.pos
+        diff = ball.pos.copy() - self.pos
 
-        if (ball.pos-self.pos).normalize().dot((ball.pos-opponent.pos).normalize())<0 and (ball.pos-self.pos).normalize().x<0:
+        if (ball.pos.copy()-self.pos).normalize().dot((ball.pos.copy()-opponent.pos).normalize())<0 and (ball.pos.copy()-self.pos).normalize().x<0:
             ok = 0.3
         else:
             ok = -0.15
-        check_ok = (self.pos-ball.pos).normalize().dot((self.pos-opponent.pos).normalize())<0 and (ball.pos-self.pos).normalize().x>0
+        check_ok = (self.pos-ball.pos.copy()).normalize().dot((self.pos-opponent.pos).normalize())<0 and (ball.pos.copy()-self.pos).normalize().x>0
         check_ok = check_ok and (t_bot > t_enemy + 0.15)
         if diff.length() < PLAYER_RADIUS + BALL_RADIUS + KICK_RANGE:
             state = "ATTACK"
@@ -754,12 +750,12 @@ class AttackBot:
         else:
             state = "ATTACK"
         if state == "CLEAR":
-            vec_excepted = self.find_best_clear(ball,bot_intercept) - ball.pos
+            vec_excepted = self.find_best_clear(ball,bot_intercept) - ball.pos.copy()
             vec = vec_excepted - ball.vel
             if vec.length_squared() > 1e-6:
                 planned_shot_direction = vec.normalize()
-                bot_to_ball = ball.pos - self.pos
-                target = ball.pos - planned_shot_direction * (PLAYER_RADIUS + BALL_RADIUS+0.1)
+                bot_to_ball = ball.pos.copy() - self.pos
+                target = ball.pos.copy() - planned_shot_direction * (PLAYER_RADIUS + BALL_RADIUS+0.1)
                 if bot_to_ball.length_squared() > 1e-6:
                     behind_alignment = bot_to_ball.normalize().dot(planned_shot_direction)
                 else:
@@ -768,9 +764,9 @@ class AttackBot:
                     should_kick = True
                 else:
                     should_kick = False
-                    target = AttackBot.orbit_attack_target(self.pos, ball.pos, target)
+                    target = AttackBot.orbit_attack_target(self.pos, ball.pos.copy(), target)
             else:
-                target = ball.pos
+                target = ball.pos.copy()
                 should_kick = False
         elif state == "DEFEND":
             self.cache_target_clear=pygame.Vector2(0,0)
@@ -781,14 +777,14 @@ class AttackBot:
             goal_top = pygame.Vector2(0, GOAL_TOP + 0.1)
             goal_bottom = pygame.Vector2(0, GOAL_BOTTOM - 0.1)
             
-            best_goal_target = AttackBot.find_best_goal_target(ball.pos, goal_center, goal_top, goal_bottom)
-            attack_vec_excepted = best_goal_target - ball.pos
+            best_goal_target = AttackBot.find_best_goal_target(ball.pos.copy(), goal_center, goal_top, goal_bottom)
+            attack_vec_excepted = best_goal_target - ball.pos.copy()
             attack_vec = attack_vec_excepted - ball.vel
-            check_it = self.is_not_player_ball_line_on_goal(ball) and ball.pos.x>=FIELD_WIDTH-200
+            check_it = self.is_not_player_ball_line_on_goal(ball) and ball.pos.copy().x>=FIELD_WIDTH-200
             if attack_vec.length_squared() > 1e-6:
                 planned_shot_direction = attack_vec.normalize()
-                target = ball.pos - planned_shot_direction * (PLAYER_RADIUS + BALL_RADIUS+0.1)
-                bot_to_ball = ball.pos - self.pos
+                target = ball.pos.copy() - planned_shot_direction * (PLAYER_RADIUS + BALL_RADIUS+0.1)
+                bot_to_ball = ball.pos.copy() - self.pos
                 if bot_to_ball.length_squared() > 1e-12:
                     behind_alignment = bot_to_ball.normalize().dot(planned_shot_direction)
                 else:
@@ -797,19 +793,20 @@ class AttackBot:
                     should_kick = True
                 else:
                     should_kick = False
-                    target = AttackBot.orbit_attack_target(self.pos, ball.pos, target)
+                    target = AttackBot.orbit_attack_target(self.pos, ball.pos.copy(), target)
             else:
-                target = ball.pos
+                target = ball.pos.copy()
                 should_kick = False
         elif state == "SPAM":
             should_kick = True
-            target = ball.pos
+            target = ball.pos.copy()
         direction = target - self.pos
         hack_speed = 1.05
         if direction.length() > 0.5:
             direction = direction.normalize()
             self.vel += direction * self.acceleration * dt * hack_speed
-
+        hack_strong = 1.2
+        self.kick_force = KICK_FORCE * hack_strong
         kicked = False
         if should_kick:
             if diff.length() < PLAYER_RADIUS + BALL_RADIUS + KICK_RANGE:
@@ -822,7 +819,7 @@ class AttackBot:
         self.debug_info["is_pressed"] = is_pressed
         self.debug_info["time_to_ball"] = t_bot
         self.debug_info["enemy_time_to_ball"] = t_enemy
-        self.debug_info["ball_distance"] = (ball.pos - self.pos).length()
+        self.debug_info["ball_distance"] = (ball.pos.copy() - self.pos).length()
         self.debug_info["path_clear"] = path_clear
         return kicked
 
@@ -922,7 +919,6 @@ class DefBot:
             v_parallel = 0
             v_perp = 0
 
-        # ===== x? lý (d?i hu?ng) =====
         t_perp = v_perp / a
 
         if v_parallel < 0:
@@ -935,7 +931,6 @@ class DefBot:
         dist = max(dist - s_stop, 0)
         v0 = max(v_parallel, 0)
 
-        # ===== tang t?c t?i max =====
         t_acc = max((v_max - v0) / a, 0)
         s_acc = v0 * t_acc + 0.5 * a * t_acc**2
 
@@ -953,7 +948,7 @@ class DefBot:
         max_t = 2.0
         sim_dt = max(1 / 180, min(dt, 1 / 60))
 
-        pos = ball.pos.copy()
+        pos = ball.pos.copy().copy()
         vel = ball.vel.copy()
         time = 0.0
 
@@ -979,7 +974,6 @@ class DefBot:
                 best_time = time
 
         return {"pos": best_pos, "vel": best_vel, "time": best_time}
-    #Hàm dua ra v? trí v?i th?i gian ng?n nh?t mà bot có th? t?i
     @staticmethod
     def find_intercept(player, ball, dt):
         """Trả về riêng vị trí dự đoán để cầu thủ chạm bóng."""
@@ -989,7 +983,7 @@ class DefBot:
         """Dự đoán liệu bóng có đang bay thẳng vào gôn nhà hay không."""
         max_t = 3.0
         sim_dt = max(1 / 180, min(dt, 1 / 60))
-        pos = ball.pos.copy()
+        pos = ball.pos.copy().copy()
         vel = ball.vel.copy()
         time = 0.0
         last_pos = pos.copy()
@@ -1025,8 +1019,6 @@ class DefBot:
                 break
 
         return None
-    #Hàm phòng th?
-    #Phòng th? b?ng cách ch?y theo tia t? player.pos d?n di?m gi?a c?a gôn bot
     def jockey_position(self, ball, opponent):
         """Chọn vị trí phòng thủ tối ưu giữa đối thủ và gôn nhà."""
         my_goal = pygame.Vector2(FIELD_WIDTH, FIELD_HEIGHT // 2)
@@ -1042,9 +1034,9 @@ class DefBot:
             GOAL_BOTTOM
         )
 
-        to_player = self.pos - ball.pos
-        to_my_goal1 = goal_top_pos - ball.pos
-        to_my_goal2 = goal_bottom_pos - ball.pos
+        to_player = self.pos - ball.pos.copy()
+        to_my_goal1 = goal_top_pos - ball.pos.copy()
+        to_my_goal2 = goal_bottom_pos - ball.pos.copy()
 
         player_goal_alignment1 = (
             to_player.normalize().dot(
@@ -1057,7 +1049,7 @@ class DefBot:
             )
         )
 
-        to_attack_bot = self.attack_bot.pos - ball.pos
+        to_attack_bot = self.attack_bot.pos - ball.pos.copy()
         alignment1 = to_attack_bot.normalize().dot(
             to_my_goal1.normalize()
         )
@@ -1067,19 +1059,65 @@ class DefBot:
         if self.attack_bot.pos.x < self.pos.x+10+PLAYER_RADIUS*2:
             return my_goal
         dir_to_ball = goal_to_ball_vec.normalize()
-        ball_control_dist = 0 # (ball.pos - opponent.pos).length()
+        ball_control_dist = 0 # (ball.pos.copy() - opponent.pos).length()
         if (alignment1 < -0.2 or alignment2 < -0.2):
             if ball_control_dist > PLAYER_RADIUS + BALL_RADIUS + 1000 or dist_to_goal < 280:
-                return ball.pos.copy()  # Lao th?ng vào bóng
+                return ball.pos.copy().copy() 
 
         dynamic_buffer = min(100, dist_to_goal * 0.3) 
         
         target = opponent.pos - dir_to_ball * dynamic_buffer
         target.x = max(target.x, FIELD_WIDTH - FIELD_WIDTH * 0.3)
         return target
+    def need_press(self, ball, opponent):
+        my_goal = pygame.Vector2(FIELD_WIDTH, FIELD_HEIGHT // 2)
+        goal_to_ball_vec = opponent.pos - my_goal
+        dist_to_goal = goal_to_ball_vec.length()
+        dist_to_self = (opponent.pos - self.pos).length()
+        dist_attack_to_self = (self.attack_bot_pos - my_goal).length()
+        if (dist_attack_to_self<dist_to_self): return my_goal
+        goal_top_pos = pygame.Vector2(
+            FIELD_WIDTH,
+            GOAL_TOP
+        )
+
+        goal_bottom_pos = pygame.Vector2(
+            FIELD_WIDTH,
+            GOAL_BOTTOM
+        )
+
+        to_player = self.pos - ball.pos.copy()
+        to_my_goal1 = goal_top_pos - ball.pos.copy()
+        to_my_goal2 = goal_bottom_pos - ball.pos.copy()
+
+        player_goal_alignment1 = (
+            to_player.normalize().dot(
+                to_my_goal1.normalize()
+            )
+        )
+        player_goal_alignment2 = (
+            to_player.normalize().dot(
+                to_my_goal2.normalize()
+            )
+        )
+
+        to_attack_bot = self.attack_bot.pos - ball.pos.copy()
+        alignment1 = to_attack_bot.normalize().dot(
+            to_my_goal1.normalize()
+        )
+        alignment2 = to_attack_bot.normalize().dot(
+            to_my_goal2.normalize()
+        )
+        dir_to_ball = goal_to_ball_vec.normalize()
+        ball_control_dist = 0 # (ball.pos.copy() - opponent.pos).length()
+        if (alignment1 < 0.1 or alignment2 < 0.1):
+            if ball_control_dist > PLAYER_RADIUS + BALL_RADIUS + 1000 or dist_to_goal < 400:
+                return ball.pos.copy().copy() 
+
+        return None
     def find_best_clear(self,ball,bot_intercept):
         """Chọn mục tiêu phá bóng an toàn và dễ tiếp cận hơn cho bot."""
-        dir = self.pos - ball.pos
+        dir = self.pos - ball.pos.copy()
         target_top = pygame.Vector2(FIELD_WIDTH-5,5)
         target_bottom = pygame.Vector2(FIELD_WIDTH-5,FIELD_HEIGHT-5)
         self.cache_target_clear=pygame.Vector2(0,0)
@@ -1092,10 +1130,10 @@ class DefBot:
     def is_player_ball_line_on_goal(self, ball):
         """Kiểm tra cầu thủ có thể sút bóng về phía gôn trái hay không."""
         A = self.pos
-        dir = ball.pos - self.pos
+        dir = ball.pos.copy() - self.pos
         if dir.length_squared() < 1e-6:
             return False
-        shot_dir = (ball.pos - self.pos).normalize()
+        shot_dir = (ball.pos.copy() - self.pos).normalize()
         final_vel = ball.vel + shot_dir * KICK_FORCE
         goal_x = 0
         if final_vel.x >= 0:
@@ -1112,10 +1150,10 @@ class DefBot:
     def is_not_player_ball_line_on_goal(self, ball):
         """Kiểm tra cầu thủ có thể phá bóng khỏi vùng gôn phải hay không."""
         A = self.pos
-        dir = ball.pos - self.pos
+        dir = ball.pos.copy() - self.pos
         if dir.length_squared() < 1e-6:
             return False
-        shot_dir = (ball.pos - self.pos).normalize()
+        shot_dir = (ball.pos.copy() - self.pos).normalize()
         final_vel = ball.vel + shot_dir * KICK_FORCE
         goal_x = FIELD_WIDTH
         if final_vel.x <= 0:
@@ -1167,7 +1205,7 @@ class DefBot:
         return candidate_b
     def NEED_SPAM(self, opponent, ball):
         """Trả về True nếu bot nên áp sát và spam tranh bóng ở cự ly gần."""
-        if (ball.pos-self.pos).normalize().dot((ball.pos-opponent.pos).normalize())<0 and (ball.pos-self.pos).normalize().x<0:
+        if (ball.pos.copy()-self.pos).normalize().dot((ball.pos.copy()-opponent.pos).normalize())<0 and (ball.pos.copy()-self.pos).normalize().x<0:
            return((self.pos-opponent.pos).length() - (PLAYER_RADIUS*2 + BALL_RADIUS + 150) <= 0)
         return False
     def bot_update(self, opponent, ball, dt):
@@ -1190,16 +1228,19 @@ class DefBot:
         is_pressed = False
         planned_shot_direction = pygame.Vector2(0, 0)
         path_clear = None
-        diff = ball.pos - self.pos
+        diff = ball.pos.copy() - self.pos
 
-        if (ball.pos-self.pos).normalize().dot((ball.pos-opponent.pos).normalize())<0 and (ball.pos-self.pos).normalize().x<0:
+        if (ball.pos.copy()-self.pos).normalize().dot((ball.pos.copy()-opponent.pos).normalize())<0 and (ball.pos.copy()-self.pos).normalize().x<0:
             ok = 0.3
         else:
             ok = -0.15
-        check_ok = (self.pos-ball.pos).normalize().dot((self.pos-opponent.pos).normalize())<0 and (ball.pos-self.pos).normalize().x>0
+        check_ok = (self.pos-ball.pos.copy()).normalize().dot((self.pos-opponent.pos).normalize())<0 and (ball.pos.copy()-self.pos).normalize().x>0
         check_ok = check_ok and (t_bot > t_enemy + 0.15)
         goal_prediction = self.ball_fly_goal(ball, dt)
-        if t_bot > t_enemy - 0.15:
+        save_need_press = self.need_press(ball,opponent)
+        if save_need_press !=None:
+            state = "PRESS"
+        elif t_bot > t_enemy - 0.15:
             state = "DEFEND"
         elif t_bot - t_enemy < 0.15 and t_bot - t_enemy > -1 and diff.normalize().x >=0:
             state = "CLEAR"
@@ -1215,17 +1256,25 @@ class DefBot:
                 target = goal_prediction["pos"]
                 should_kick = True
                 okkkk = True
+                hack_speed = 1.35
             else:
                 state = "CLEAR"
                 okkkk = False
         if not okkkk:
+            hack_speed = 1
+            if state == "PRESS":
+                target = save_need_press
+                if target != my_goal:
+                    should_kick = True
+                else: 
+                    should_kick = False
             if state == "CLEAR":
-                vec_excepted = self.find_best_clear(ball,bot_intercept) - ball.pos
+                vec_excepted = self.find_best_clear(ball,bot_intercept) - ball.pos.copy()
                 vec = vec_excepted - ball.vel
                 if vec.length_squared() > 1e-6:
                     planned_shot_direction = vec.normalize()
-                    bot_to_ball = ball.pos - self.pos
-                    target = ball.pos - planned_shot_direction * (PLAYER_RADIUS + BALL_RADIUS+0.1)
+                    bot_to_ball = ball.pos.copy() - self.pos
+                    target = ball.pos.copy() - planned_shot_direction * (PLAYER_RADIUS + BALL_RADIUS+0.1)
                     if bot_to_ball.length_squared() > 1e-6:
                         behind_alignment = bot_to_ball.normalize().dot(planned_shot_direction)
                     else:
@@ -1234,9 +1283,9 @@ class DefBot:
                         should_kick = True
                     else:
                         should_kick = False
-                        target = DefBot.orbit_attack_target(self.pos, ball.pos, target)
+                        target = DefBot.orbit_attack_target(self.pos, ball.pos.copy(), target)
                 else:
-                    target = ball.pos
+                    target = ball.pos.copy().copy().copy()
                     should_kick = False
             elif state == "DEFEND":
                 self.cache_target_clear=pygame.Vector2(0,0)
@@ -1247,14 +1296,14 @@ class DefBot:
                 goal_top = pygame.Vector2(0, GOAL_TOP + 0.1)
                 goal_bottom = pygame.Vector2(0, GOAL_BOTTOM - 0.1)
                 
-                best_goal_target = DefBot.find_best_goal_target(ball.pos, goal_center, goal_top, goal_bottom)
-                attack_vec_excepted = best_goal_target - ball.pos
+                best_goal_target = DefBot.find_best_goal_target(ball.pos.copy().copy(), goal_center, goal_top, goal_bottom)
+                attack_vec_excepted = best_goal_target - ball.pos.copy().copy()
                 attack_vec = attack_vec_excepted - ball.vel
-                check_it = self.is_not_player_ball_line_on_goal(ball) and ball.pos.x>=FIELD_WIDTH-200
+                check_it = self.is_not_player_ball_line_on_goal(ball) and ball.pos.copy().x>=FIELD_WIDTH-200
                 if attack_vec.length_squared() > 1e-6:
                     planned_shot_direction = attack_vec.normalize()
-                    target = ball.pos - planned_shot_direction * (PLAYER_RADIUS + BALL_RADIUS+0.1)
-                    bot_to_ball = ball.pos - self.pos
+                    target = ball.pos.copy() - planned_shot_direction * (PLAYER_RADIUS + BALL_RADIUS+0.1)
+                    bot_to_ball = ball.pos.copy() - self.pos
                     if bot_to_ball.length_squared() > 1e-12:
                         behind_alignment = bot_to_ball.normalize().dot(planned_shot_direction)
                     else:
@@ -1263,16 +1312,16 @@ class DefBot:
                         should_kick = True
                     else:
                         should_kick = False
-                        target = DefBot.orbit_attack_target(self.pos, ball.pos, target)
+                        target = DefBot.orbit_attack_target(self.pos, ball.pos.copy(), target)
                 else:
-                    target = ball.pos
+                    target = ball.pos.copy().copy()
                     should_kick = False
             elif state == "SPAM":
                 should_kick = True
-                target = ball.pos
+                target = ball.pos.copy().copy()
         target.x = max(target.x, FIELD_WIDTH - FIELD_WIDTH * 0.5)
         direction = target - self.pos
-        hack_speed = 1.05
+        hack_speed = max(hack_speed,1.15)
         if direction.length() > 0.5:
             direction = direction.normalize()
             self.vel += direction * self.acceleration * dt * hack_speed
@@ -1289,7 +1338,7 @@ class DefBot:
         self.debug_info["is_pressed"] = is_pressed
         self.debug_info["time_to_ball"] = t_bot
         self.debug_info["enemy_time_to_ball"] = t_enemy
-        self.debug_info["ball_distance"] = (ball.pos - self.pos).length()
+        self.debug_info["ball_distance"] = (ball.pos.copy() - self.pos).length()
         self.debug_info["path_clear"] = path_clear
         return kicked
 
